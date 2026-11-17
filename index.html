@@ -125,7 +125,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.9</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.10</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -434,13 +434,13 @@ function setVol(z, v) {
   const zz = S.zones[z]; if (!zz) return;
   send([0xB0 + ((zz.canal - 1) & 15), 7, v]);            // tout de suite à l'oreille
   const m = mixOf(z); m.want = v; m.prev = v || m.prev;
-  clearTimeout(evT[z]); evT[z] = setTimeout(() => { save(); renderTable(); }, 300);
+  clearTimeout(evT[z]); evT[z] = setTimeout(() => { save(); renderTable(); renderZones(); }, 300);
 }
 function setMute(z, on) {
   const zz = S.zones[z]; if (!zz) return; const m = mixOf(z);
   if (on) { if (evOf(z)) m.prev = evOf(z); setVol(z, 0); }
   else setVol(z, m.prev || 100);
-  m.mute = false; setTimeout(renderTable, 150);
+  m.mute = false; setTimeout(() => { renderTable(); renderZones(); }, 150);
 }
 function applyMixSoon() { applyMix(); setTimeout(applyMix, 900); }
 function applyMix() { if (!S.cur || isProgramMode()) return; for (let z = 0; z < 4; z++) { const m = mixOf(z), zz = S.zones[z]; if (!zz) continue;
@@ -612,7 +612,7 @@ function xToNote(x) {
 function renderZones() {
   const box = $('#zbars'); box.innerHTML = '';
   S.zones.forEach((z, i) => {
-    if (isHidden(i)) return;
+    if (isHidden(i) || (z && isMuted(i))) return;   // zones masquées ou muettes : pas de barre
     const row = document.createElement('div'); row.className = 'zrow';
     if (z) {
       const L = left(z.lo), R = right(z.hi);
@@ -650,12 +650,20 @@ async function applyProgram(z, n) {
   if (isProgramMode()) { toast('Passe d\'abord l\'Artis en mode Multi'); renderTable(); return; }
   if (!(n >= 1 && n <= 16383) || n === progOf(z)) { renderTable(); return; }
   if (n === cur.prog) { delete mixOf(z).wantProg; save(); renderTable(); return; }
-  // [V 17/11] L'Artis refuse ce changement en direct (relecture = ancien programme). Comme pour le volume, la page le garde
-  // et l'écrit dans l'objet Multi à la sauvegarde (+0x0C banque, +0x0D PC), puis recharge le Multi pour qu'on l'entende.
-  const m = mixOf(z); m.wantProg = n;
-  m.wantName = await Artis.name(0x0A, n); save();
-  S.check[z] = 'prog'; renderTable();
-  toast(`Programme ${n} « ${m.wantName || ''} » retenu pour la zone ${z + 1} : tu l'entendras après 💾 (l'Artis n'accepte pas ce changement en direct)`, 6000);
+  // [V 17/11] En direct, le changement passe pour un programme de la même banque (zone 1 : NOLA → Concert Piano)
+  // mais pas en changeant de banque (zone 2 restée sur 129 = banque 1, PC 0 : le PC envoyé juste après la banque est perdu).
+  // On envoie donc la banque, puis le PC deux fois avec un délai, on relit ; si ce n'est toujours pas pris,
+  // la page retient le programme et l'écrit dans l'objet Multi à la sauvegarde (+0x0C banque, +0x0D PC).
+  const m = mixOf(z), i = n - 1;
+  m.wantName = await Artis.name(0x0A, n);
+  S.check[z] = 'pending'; renderTable();
+  Artis.setParam(z, 0x09, i >> 7); await sleep(250);
+  Artis.setParam(z, 0x0A, i & 127); await sleep(250);
+  Artis.setParam(z, 0x0A, i & 127); await sleep(400);
+  const got = await Artis.zone(z);
+  if (got && got.prog === n) { cur.prog = n; cur.progName = m.wantName; delete m.wantProg; S.check[z] = 'ok'; save(); renderTable(); return; }
+  m.wantProg = n; save(); S.check[z] = 'prog'; renderTable();
+  toast(`L'Artis n'a pas pris le programme ${n} en direct (il indique ${got ? got.prog : '?'}). La page l'écrira dans le Multi à la sauvegarde 💾 : tu l'entendras après.`, 7000);
 }
 function applyTranspose(z, v) {
   const cur = S.zones[z]; if (!cur) return;
@@ -998,7 +1006,7 @@ function makeFakeArtis() {
       cc[x[1]] = x[2];
       if (x[1] === 119 && cc[110] === 5 && cc[111] < 4) {
         const v = ((cc[118] << 7) | cc[119]) - 0x2000, o = ZBASE + cc[111] * ZLEN + cc[114] + 3;
-        if ([0x18, 0x09, 0x0A].includes(cc[114])) return;   // l'Artis réel refuse ce param en direct
+        if (cc[114] === 0x18 || (window.demoProgRefuse && [0x09, 0x0A].includes(cc[114]))) return;   // l'Artis réel refuse ce param en direct
         if (cc[114] === 0x12) { const t = v & 0xFFFF; buf[o] = t >> 8; buf[o + 1] = t & 255; } else buf[o] = v & 255;
       }
       return;
