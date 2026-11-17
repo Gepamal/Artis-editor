@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.15</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.16</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -681,7 +681,7 @@ async function applyProgram(z, n) {
   const got = await Artis.zone(z);
   if (got && got.prog === n) { cur.prog = n; cur.progName = m.wantName; delete m.wantProg; S.check[z] = 'ok'; save(); renderTable(); return; }
   m.wantProg = n; save(); S.check[z] = 'prog'; renderTable();
-  toast(`L'Artis n'a pas pris le programme ${n} en direct (il indique ${got ? got.prog : '?'}). La page l'écrira dans le Multi à la sauvegarde 💾 : tu l'entendras après.`, 7000);
+  toast(`L'Artis n'a pas pris le programme ${n} en direct (il indique ${got ? got.prog : '?'}). Choisis-le en façade et sauvegarde avec Save sur l'Artis.`, 7000);
 }
 function applyTranspose(z, v) {
   const cur = S.zones[z]; if (!cur) return;
@@ -735,7 +735,7 @@ function renderTable() {
     const tr = document.createElement('tr');
     if (!z) { tr.innerHTML = `<td><span class="zdot" style="background:${ZC[i]}"></span>Zone ${i + 1}</td><td colspan="8" class="muted">non lue</td>`; tb.appendChild(tr); return; }
     const c = S.check[i];
-    const st = mixOf(i).wantProg !== undefined ? '<span class="warn">💾 programme à sauvegarder</span>' : c === 'ok' ? '<span class="okc">✓ confirmé</span>' : c === 'pending' ? '<span class="muted">…</span>'
+    const st = mixOf(i).wantProg !== undefined ? '<span class="warn" title="La page ne sait pas enregistrer un changement de programme : choisis-le en façade, puis Save sur l\'Artis">⚠ programme : Save sur l\'Artis</span>' : c === 'ok' ? '<span class="okc">✓ confirmé</span>' : c === 'pending' ? '<span class="muted">…</span>'
       : mixOf(i).wantProg !== undefined ? '<span class="warn" title="Changement refusé en direct par l’Artis : appliqué à la sauvegarde">💾 programme à sauvegarder</span>' : c === 'nores' ? '<span class="warn">pas de réponse</span>' : c.startsWith('bad:') ? `<span class="err" title="L'Artis a gardé une autre valeur">⚠ l'Artis indique ${esc(c.slice(4))}</span>` : '';
     tr.innerHTML = `<td><span class="zdot" style="background:${ZC[i]}"></span>Zone ${i + 1} <button class="small" data-hide="1" title="Masquer cette zone à l'écran pour ce Multi (elle reste active sur le clavier)">masquer</button></td>
       <td>${z.canal}</td>
@@ -1008,7 +1008,7 @@ function makeFakeArtis() {
   // Artis simulé : objets Multi en mémoire (5213 octets « PC3… »), tampon d'édition, protocole 0B / 11 / 5A 20-00-06-01-21 / CC 110-119
   const progs = {15: 'NOLA Piano', 194: 'Rich Les', 191: 'Add A Pad 1', 251: 'PERC Carnival', 40: 'Fingered Bass'};
   const mk = zs => { const b = new Array(MULTI_SIZE).fill(0); b[0] = 80; b[1] = 67; b[2] = 51; for (let i = 3; i < ZBASE; i++) b[i] = (i * 37 + 11) & 127;
-    zs.forEach((z, i) => { const o = ZBASE + i * ZLEN, p = z.prog - 1, t = z.tr & 0xFFFF; b[o + 3] = i + 1; b[o + 0x0C] = p >> 7; b[o + 0x0D] = p & 127; b[o + 0x12] = z.lo; b[o + 0x13] = z.hi; b[o + 0x15] = t >> 8; b[o + 0x16] = t & 255; b[o + 0x1B] = z.ev ?? 255; }); return b; };
+    zs.forEach((z, i) => { const o = ZBASE + i * ZLEN, p = z.prog - 1, t = z.tr & 0xFFFF; b[o + 3] = i + 1; b[o + 0x0C] = p >> 7; b[o + 0x0D] = p & 127; b[o + 0x12] = z.lo; b[o + 0x13] = z.hi; b[o + 0x15] = t >> 8; b[o + 0x16] = t & 255; b[o + 0x1B] = z.ev ?? 255; b[o + 0x4B9] = z.prog & 255; b[o + 0x4BA] = z.prog >> 8; }); return b; };
   const Z = (lo1, hi1, lo2, hi2) => [{prog: 15, lo: lo1, hi: hi1, tr: 0}, {prog: 194, lo: lo2, hi: hi2, tr: 0}, {prog: 191, lo: 0, hi: 127, tr: 0}, {prog: 251, lo: 0, hi: 127, tr: -113, ev: 0}];
   const mem = {1: {name: 'Piano, Steel+Pad', user: 0, data: mk(Z(0, 127, 0, 127))}, 12: {name: 'Stage Rhodes+Str', user: 0, data: mk(Z(60, 127, 0, 59))},
     181: {name: 'Phat Horns', user: 0, data: mk(Z(0, 127, 0, 127))}, 257: {name: 'My Split', user: 1, data: mk(Z(60, 127, 0, 59))}, 254: {name: 'Artis Control', user: 0, data: mk(Z(0, 127, 0, 127))}};
@@ -1247,9 +1247,12 @@ async function svGo() {
     }
     const wants = [0, 1, 2, 3].map(z => (mixOf(z) || {}).want);
     wants.forEach((w, z) => { if (w === undefined) return; const o = ZBASE + z * ZLEN; data[o + 0x1B] = w; data[o + 0xA0] = w; });
+    // [V 17/11, export de l’utilisateur] Changer le programme d'une zone ne se résume pas à +0x0C/+0x0D : la Save de l'Artis réécrit
+    // une copie du n° à +0x4B9/+0x4BA (bits 0-8, +0x200 pour certains programmes) et des dizaines d'octets tirés du programme.
+    // Le tampon 0B ne les contient pas : la page ne sait pas faire un changement de programme correct, elle refuse.
     const progs = [0, 1, 2, 3].map(z => (mixOf(z) || {}).wantProg);
-    progs.forEach((n, z) => { if (n === undefined) return; const o = ZBASE + z * ZLEN, i = n - 1; data[o + 0x0C] = i >> 7; data[o + 0x0D] = i & 127; });
-    if (progs.some(n => n !== undefined)) svLog('   Programmes écrits : ' + progs.map((n, z) => n === undefined ? null : `zone ${z + 1} = ${n}`).filter(Boolean).join(', '));
+    const pz = [0, 1, 2, 3].filter(z => { const o = ZBASE + z * ZLEN, p = data[o + 0x0C] * 128 + data[o + 0x0D] + 1, c = (data[o + 0x4B9] | (data[o + 0x4BA] << 8)) & 0x1FF; return progs[z] !== undefined || p !== c; });
+    if (pz.length) throw `programme changé en ${pz.map(z => 'zone ' + (z + 1)).join(', ')} : la page ne sait pas encore l'enregistrer correctement (le Multi afficherait le nouveau son mais jouerait l'ancien). Choisis le programme en façade et sauvegarde avec la touche Save de l'Artis. Rien écrit.`;
     if (wants.some(w => w !== undefined)) svLog('   Volumes d\'entrée écrits : ' + wants.map((w, z) => w === undefined ? null : `zone ${z + 1} = ${w}`).filter(Boolean).join(', '));
     const sT = $('#svTrL').style.display !== 'none' && $('#svTrOff').checked ? +$('#svTrOff').dataset.t : 0;
     if (sT) {
@@ -1451,6 +1454,7 @@ $('#btnRestore').onclick = async () => {
     for (const m of restoreList) {
       const data = unb64(m.data), i = await Mem.info(m.id, 1000);
       if (data.length !== MULTI_SIZE || ascii(data.slice(0, 3)) !== 'PC3') { L(`✗ ${m.id} : données invalides dans le fichier, ignoré`); continue; }
+      if ([0, 1, 2, 3].some(z => { const o = ZBASE + z * ZLEN; return data[o + 0x0C] * 128 + data[o + 0x0D] + 1 !== ((data[o + 0x4B9] | (data[o + 0x4BA] << 8)) & 0x1FF); })) { L(`✗ ${m.id} « ${m.name} » : programmes incohérents (il jouerait un autre son que celui affiché), ignoré`); continue; }
       if (!i) { plan.push({...m, data, how: 'nouveau'}); continue; }
       if (!i.user) { L(`✗ ${m.id} : c'est un Multi d'usine sur ce clavier, pas touché`); continue; }
       const cur = await Mem.read(m.id);
