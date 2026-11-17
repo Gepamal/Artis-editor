@@ -1,0 +1,1524 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artis Editor</title>
+<style>
+:root{
+  --bg:#121417; --panel:#1b1e23; --panel2:#23272e; --line:#323843; --text:#e7e9ee; --muted:#9097a3;
+  --accent:#f0b429; --ok:#3ecf8e; --warn:#f5a524; --err:#f04f4f;
+  --z1:#4f9cf9; --z2:#f06292; --z3:#3ecf8e; --z4:#f0b429;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:16px;margin:0 8px 0 0;letter-spacing:.3px}
+.pill{padding:3px 10px;border-radius:999px;background:var(--panel2);color:var(--muted);font-size:12px}
+.pill.ok{background:#173a2b;color:var(--ok)} .pill.err{background:#3d1a1a;color:var(--err)} .pill.demo{background:#3a3016;color:var(--accent)}
+button,select,input{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 10px}
+button{cursor:pointer} button:hover{border-color:#4a5260} button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);color:#1a1300;border-color:var(--accent);font-weight:600}
+button.small{padding:2px 7px;font-size:12px}
+input[type=text],input[type=number]{width:62px}
+input[type=range]{-webkit-appearance:none;appearance:none;height:18px;background:transparent;padding:0;margin:0;border:0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--accent) var(--p,79%),#3a404b var(--p,79%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;margin-top:-5px;border:2px solid var(--accent)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#3a404b}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--accent)}
+.key{cursor:pointer} .key.w.on{background:var(--accent)} .key.b.on{background:#b07d10}
+main{max-width:1280px;margin:0 auto;padding:16px;display:grid;gap:16px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+section h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+section h2 .grow{flex:1}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--muted)} .warn{color:var(--warn)} .err{color:var(--err)} .okc{color:var(--ok)}
+#curName{font-size:22px;font-weight:600}
+#curId{font-size:16px;font-weight:600;color:#1a1300;background:var(--accent);border-radius:6px;padding:2px 8px}
+#curId:empty{display:none}
+#modeWarn{display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:#3d1a1a;color:#ffd0d0;border:1px solid var(--err)}
+#modeWarn.on{display:block}
+/* clavier */
+.kwrap{position:relative;user-select:none;touch-action:none}
+.kbd{position:relative;height:96px;border-radius:4px 4px 0 0;overflow:hidden;background:#000}
+.key{position:absolute;top:0}
+.key.w{height:96px;background:#f4f4f2;border-right:1px solid #9a9a9a;border-radius:0 0 3px 3px}
+.key.b{height:58px;background:#1d1d1d;z-index:2;border-radius:0 0 3px 3px;border:1px solid #000}
+.key .lbl{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:9px;color:#666}
+.zones{position:relative;margin-top:6px}
+.zrow{position:relative;height:34px;margin-bottom:4px;background:var(--panel2);border-radius:4px}
+.bar{position:absolute;top:3px;bottom:3px;border-radius:4px;cursor:grab;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#0d0f12;white-space:nowrap;overflow:hidden;min-width:6px}
+.bar:active{cursor:grabbing}
+.h{position:absolute;top:0;bottom:0;width:10px;cursor:ew-resize;background:rgba(0,0,0,.25)}
+.h.l{left:0;border-radius:4px 0 0 4px} .h.r{right:0;border-radius:0 4px 4px 0}
+.clip{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;color:#0d0f12}
+/* tableau zones */
+table{border-collapse:collapse;width:100%}
+th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:500}
+.zdot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.tr{display:flex;align-items:center;gap:4px}
+.tr output{min-width:38px;text-align:center;font-weight:600}
+.state{font-size:12px}
+/* favoris */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.bank{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+@media (max-width:1100px){.bank{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.slot{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 8px 6px;cursor:pointer;min-height:70px;display:flex;flex-direction:column;gap:2px}
+.slot .n{font-size:20px;font-weight:700;color:var(--muted);line-height:1}
+.slot .nm{font-weight:600;font-size:14px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.slot .id{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot:hover{border-color:var(--accent)} .slot.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;background:#2b2615} .slot.on .n{color:var(--accent)}
+.slot.empty{border-style:dashed;opacity:.7;justify-content:center;align-items:center;text-align:center} .slot.empty .nm{font-weight:400;font-size:12px;color:var(--muted)}
+.slot .act{display:none;position:absolute;top:4px;right:4px;gap:2px} .slot:hover .act{display:flex}
+.slot .todo{color:var(--warn)}
+#planBar{display:none;margin:8px 0;padding:8px 10px;border:1px dashed var(--warn);border-radius:8px;color:var(--warn);font-size:13px} #planBar.on{display:block}
+.slot.dragover{outline:2px dashed var(--accent)}
+.favs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.fav{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;cursor:pointer;min-height:64px}
+.fav:hover{border-color:var(--accent)} .fav.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.fav .num{position:absolute;top:6px;right:8px;font-size:11px;color:var(--muted)}
+.fav .nm{font-weight:600;padding-right:18px} .fav .id{font-size:12px;color:var(--muted)}
+.fav .act{display:none;position:absolute;bottom:6px;right:6px;gap:3px} .fav:hover .act{display:flex}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.list li .t{flex:1;cursor:pointer} .list li.on{background:#2b2615}
+.list li .n{width:22px;color:var(--muted);font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:13px}
+.chip.on{background:var(--accent);color:#1a1300;border-color:var(--accent);font-weight:600}
+.chip .c{opacity:.65;font-size:11px;margin-left:4px}
+#lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px;max-height:420px;overflow:auto}
+.lit{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;background:var(--panel2);cursor:pointer}
+.lit:hover{outline:1px solid var(--accent)} .lit.on{outline:2px solid var(--accent)}
+.lit .no{color:var(--muted);font-size:12px;min-width:30px} .lit .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lit .u{font-size:10px;color:var(--accent)}
+#log{font:11px/1.35 ui-monospace,Consolas,monospace;max-height:220px;overflow:auto;white-space:pre;background:#0c0d10;padding:8px;border-radius:6px;color:#a9b1bd}
+details summary{cursor:pointer;color:var(--muted)}
+.note{font-size:12px;color:var(--muted)}
+/* mode scène */
+#stage{position:fixed;inset:0;background:#000;z-index:20;display:none;flex-direction:column;padding:24px;gap:16px}
+#stage.on{display:flex}
+#stage .top{display:flex;justify-content:space-between;align-items:center;color:var(--muted)}
+#stage .cur{font-size:clamp(36px,8vw,96px);font-weight:700;color:#fff;line-height:1.05}
+#stage .cnote{font-size:clamp(16px,2.5vw,28px);color:var(--accent)}
+#stage .ctr{display:inline-block;margin-top:10px;font-size:clamp(22px,4vw,48px);font-weight:700;padding:4px 16px;border-radius:8px;background:#2b2615;color:var(--accent)}
+#stage .cinst{font-size:clamp(22px,4vw,48px);font-weight:600;color:#fff}
+#stage .it .trn{color:var(--accent);font-weight:700}
+#stage .it .in{color:#888}
+#stage .ctr.zero{background:#1b1e23;color:var(--muted);font-weight:500}
+.trb{font-weight:700;color:var(--accent)}
+#stage .nxt{font-size:clamp(18px,3vw,34px);color:var(--muted)}
+#stage .items{flex:1;overflow:auto;display:flex;flex-direction:column;gap:4px;margin-top:8px}
+#stage .it{font-size:20px;padding:8px 12px;border-radius:6px;cursor:pointer;color:#bbb}
+#stage .it.on{background:#2b2615;color:#fff}
+#stage .navb{display:flex;gap:12px} #stage .navb button{font-size:22px;padding:14px 28px}
+#savePanel{display:none;margin-top:10px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:#211d12}
+#savePanel.on{display:block}
+#savePanel .mode{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 4px} #savePanel .mode label.dis{opacity:.45}
+#saveStatus{font-size:13px} #saveStatus:empty{display:none}
+#btnSave.open{outline:2px solid #fff3}
+#saveLog{font:12px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin-top:8px;color:#c9ccd3}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#2b2f37;border:1px solid var(--line);padding:8px 14px;border-radius:8px;z-index:30;display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.9</span></h1>
+  <span id="status" class="pill">Déconnecté</span>
+  <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
+  <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
+  <button id="btnConnect" class="primary">Connecter l'Artis</button>
+  <button id="btnDemo">Mode démo (sans clavier)</button>
+  <span style="flex:1"></span>
+  <button id="btnStage" title="Plein écran pour le concert">Mode scène</button>
+</header>
+
+<main>
+<section id="bankSec">
+  <h2>Mes 10 favoris <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">· mêmes places que les 10 boutons Favorites de l'Artis</span><span class="grow"></span>
+    <button class="small" id="btnFavById">+ Multi n°…</button><button class="small" id="btnFavProg">+ Programme n°…</button></h2>
+  <div class="bank" id="bank"></div>
+  <p class="note">Clic = charge le son et l'ouvre en édition juste en dessous. Touches 1 à 9 et 0 = boutons 1 à 10. Glisse un bouton sur un autre pour les échanger. Une case vide prend le Multi en cours. Pour figer un favori dans le clavier : sauvegarde (💾), puis appui long sur le bouton Favorites du même numéro sur l'Artis. Le volume/mute réglé dans la page n'est pas dans le Multi : le bouton physique ne le reprend pas.</p>
+</section>
+<section>
+  <h2>Multi en cours <span class="grow"></span>
+    <button id="btnRead" disabled>Relire depuis l'Artis</button>
+    <button id="btnCmp" disabled title="Montre ce qui est vraiment enregistré dans le clavier pour ce Multi et un autre">🔎 Comparer…</button>
+    <button id="btnRevert" disabled title="Recharge le Multi : annule toutes les modifs non sauvegardées">Annuler mes modifs</button>
+    <button id="btnAddFav" disabled>★ Ajouter aux favoris</button>
+    <button id="btnSave" class="primary" disabled title="Ouvre / referme le panneau de sauvegarde">💾 Sauvegarder dans le clavier ▾</button>
+  </h2>
+  <div class="row"><span id="curName" class="muted">—</span><span id="curId"></span><span id="saveStatus" class="okc"></span></div>
+  <div id="planBar"></div>
+  <div id="cmpBox" style="display:none;margin:8px 0;overflow-x:auto"></div>
+  <div id="modeWarn">L'Artis est en <b>mode Programme</b> : la page lit alors « Artis Control », la configuration interne de ce mode, et pas un Multi. <span id="progInfo"></span><br>Pour splitter, superposer ou transposer un programme, il faut le mettre dans un Multi : appuie sur <b>Multi</b>, choisis le programme dans la colonne « Programme » d'une zone, règle, puis sauvegarde. La page se met à jour toute seule quand tu changes de mode.</div>
+  <p class="note">Les modifications partent en direct dans le tampon d'édition de l'Artis (tu les entends tout de suite). Tant que tu ne sauvegardes pas, changer de Multi ou éteindre le clavier les efface.</p>
+  <div id="savePanel">
+    <div class="mode">
+      <label id="svModeOwL"><input type="radio" name="svMode" value="ow" id="svModeOw"> <b>Écraser</b> <span id="svOwTxt">le Multi en cours</span> <span class="warn">(expérimental)</span></label>
+      <label><input type="radio" name="svMode" value="new" id="svModeNew" checked> <b>Nouveau Multi</b> (n° libre, l'original n'est pas touché)</label>
+    </div>
+    <div class="row">
+      <label id="svIdL">N° <input type="number" id="svId" min="257" max="16383" style="width:80px"></label>
+      <button class="small" id="svFind">Chercher un n° libre</button>
+      <label>Nom <input type="text" id="svName" maxlength="16" style="width:170px"></label>
+      <label class="note" id="svFavL"><input type="checkbox" id="svFav" checked> puis le charger et l'ajouter aux favoris</label>
+      <button class="primary" id="svGo">Écrire</button>
+      <button id="svCancel" title="Replie le panneau. Tes réglages en cours ne sont pas touchés.">Replier</button>
+    </div>
+    <label class="warn" id="svTrL" style="display:none"><input type="checkbox" id="svTrOff" checked> <span id="svTrTxt"></span></label>
+    <p class="note" id="svNote"></p>
+    <div id="saveLog"></div>
+  </div>
+</section>
+
+<section>
+  <h2>Zones et splits <span class="grow"></span>
+    <button class="small" id="btnMixReset" title="La page n'enverra plus aucun volume/mute pour ce Multi : il sonne alors exactement comme chargé depuis la façade">↺ Oublier volume/mute de la page</button>
+    <label class="muted" style="text-transform:none;letter-spacing:0">Clavier affiché
+      <select id="rangeSel">
+        <option value="28,103">76 touches (E1–G7)</option>
+        <option value="21,108">88 touches (A0–C8)</option>
+        <option value="0,127">Plage MIDI complète</option>
+      </select></label>
+    <button class="small" id="btnLatch" title="Les clics ajoutent ou retirent des notes, pour écouter un accord">🎹 Accord</button>
+    <button class="small" id="btnAllOff" title="Coupe toutes les notes">Silence</button>
+  </h2>
+  <div class="kwrap" id="kwrap">
+    <div class="kbd" id="kbd"></div>
+    <div class="zones" id="zbars"></div>
+  </div>
+  <p class="note">Clique une touche pour l'entendre (glisse pour enchaîner, « Accord » pour en tenir plusieurs ; les zones masquées ou mutées ne jouent pas). Tire les poignées pour régler les notes basse et haute, ou le milieu de la barre pour déplacer toute la plage. Les flèches ◀ ▶ au bout d'une barre signalent que la zone déborde du clavier dessiné (jusqu'à C-1 ou G9, la plage MIDI complète) ; tirer une poignée au-delà du bord donne ces valeurs. Notation Kurzweil : C4 = 60.</p>
+  <table>
+    <thead><tr><th>Zone</th><th>Canal</th><th>Programme <span class="muted" title="Changer le programme d'une zone est expérimental : la colonne Vérif. dira si l'Artis l'a pris">(exp.)</span></th><th>Note basse</th><th>Note haute</th><th>Transpose</th><th>Volume <span class="muted" title="Envoyé en CC 7 sur le canal de la zone, comme le slider du clavier. Mémorisé par la page pour chaque Multi et renvoyé à chaque chargement.">(?)</span></th><th>Vérif.</th></tr></thead>
+    <tbody id="ztable"></tbody>
+  </table>
+  <details id="probe" style="margin-top:10px"><summary>🔍 Détecter un réglage du clavier (pour m'aider à décoder volume, mute, etc.)</summary>
+    <p class="note">La photo lit tout ce que le clavier expose (≈ 20 s la première fois) et note les messages MIDI qu'il envoie pendant ta modif. 1. Clique « Photo avant ». 2. Sur l'Artis, change <b>un seul</b> réglage (ex. volume de la zone 1 de 100 à 80). 3. Clique « Photo après ». 4. Copie le résultat et envoie-le-moi avec ce que tu as changé.</p>
+    <div class="row"><button class="small" id="prA">Photo avant</button><button class="small" id="prB" disabled>Photo après</button><button class="small" id="prCopy" disabled>Copier le résultat</button><span id="prState" class="note"></span></div>
+    <pre id="prOut" style="white-space:pre-wrap;font-size:12px"></pre>
+  </details>
+  <label class="note row" style="margin-top:8px"><input type="checkbox" id="chkVerify" checked> Relire la zone après chaque modif pour vérifier que l'Artis a bien pris la valeur</label>
+</section>
+
+<section>
+ <details id="libBox"><summary style="cursor:pointer"><h2 style="display:inline-flex;margin:0">Bibliothèque des Multis du clavier</h2> <span class="note">(cliquer pour ouvrir)</span></summary>
+  <div class="row" style="margin-top:8px">
+    <input type="search" id="libQ" placeholder="Rechercher un nom…" style="width:200px">
+    <button class="small" id="btnLib" disabled>Lire la liste depuis l'Artis</button></div>
+  <div class="chips" id="libChips"></div>
+  <div id="lib"></div>
+  <p class="note">Clic = charger le Multi pour l'écouter et l'éditer. ★ = l'ajouter aux favoris de l'éditeur. Les familles sont devinées d'après le nom (un Multi peut être dans plusieurs) : c'est approximatif. <span class="u" style="color:var(--accent)">U</span> = Multi utilisateur.</p>
+ </details>
+</section>
+
+<section class="grid2">
+  <div>
+    <h2>Autres sons <span class="grow"></span></h2>
+    <div class="favs" id="favs"></div>
+    <p class="note">Sons gardés dans la page mais pas sur un des 10 boutons. « ⇧ » les place sur un bouton. Un son peut être un Multi ou un programme : la page passe l'Artis dans le bon mode.</p>
+  </div>
+  <div>
+    <h2>Setlists <span class="grow"></span>
+      <select id="slSel"></select>
+      <button class="small" id="btnSlNew">Nouvelle</button>
+      <button class="small" id="btnSlRen">Renommer</button>
+      <button class="small" id="btnSlDel">Supprimer</button>
+      <button class="small" id="btnSlTxt" title="Liste lisible, à envoyer sur ton téléphone ou à imprimer">Exporter (.txt)</button>
+      <label style="cursor:pointer;text-transform:none;letter-spacing:0"><input type="file" id="fileImport2" accept=".json,application/json" hidden><span class="pill" style="cursor:pointer">Importer…</span></label></h2>
+    <ul class="list" id="slItems"></ul>
+    <div class="row" style="margin-top:8px">
+      <button class="small" id="btnSlAddCur" disabled>+ Multi en cours</button>
+      <select id="slAddFav"></select><button class="small" id="btnSlAddFav">+ favori</button>
+    </div>
+    <p class="note">En mode scène : → / Espace / Page suivante = morceau suivant, ← / Page précédente = précédent, Échap = sortir. Une pédale « page turner » Bluetooth marche donc aussi.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Sauvegarde du concert <span class="grow"></span>
+    <button class="small primary" id="btnExportFull" disabled title="Favoris, setlists ET contenu de tes Multis utilisateur (lus dans l'Artis)">💾 Exporter avec les Multis</button>
+    <button class="small" id="btnExport">Exporter sans les Multis</button>
+    <label class="small" style="cursor:pointer"><input type="file" id="fileImport" accept=".json,application/json" hidden><span class="pill" style="cursor:pointer">Importer…</span></label>
+  </h2>
+  <p class="note">« Exporter avec les Multis » lit dans l'Artis tous tes Multis utilisateur (n° 257 et plus) utilisés par les boutons et les setlists, et les met dans le fichier avec les favoris, setlists et volumes de la page. Les Multis d'usine (ex. 181) ne sont pas copiés : ils sont toujours dans le clavier. À l'import, la page propose de réécrire ces Multis dans l'Artis, avec confirmation avant tout écrasement.</p>
+  <div id="restoreBox" style="display:none;margin:8px 0;padding:10px;border:1px solid var(--accent);border-radius:8px">
+    <div class="row"><b id="restoreTitle"></b><span class="grow"></span><button class="primary small" id="btnRestore">Écrire ces Multis dans l'Artis</button><button class="small" id="btnRestoreX">Plus tard</button></div>
+    <div id="restoreLog" style="font:12px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin-top:6px"></div>
+  </div>
+  <details><summary>Journal MIDI</summary><div id="log"></div></details>
+</section>
+</main>
+
+<div id="stage">
+  <div class="top"><span id="stTitle"></span><button id="stExit">Quitter (Échap)</button></div>
+  <div><div class="cur" id="stCur">—</div><div class="row" style="gap:16px;align-items:baseline"><div class="ctr" id="stTr"></div><div class="cinst" id="stInst"></div></div><div class="cnote" id="stNote"></div></div>
+  <div class="nxt" id="stNext"></div>
+  <div class="items" id="stItems"></div>
+  <div class="navb"><button id="stPrev">◀ Précédent</button><button id="stNextB">Suivant ▶</button><span style="flex:1"></span><button id="stDn" title="Touche −">½ ton ↓</button><button id="stUp" title="Touche +">½ ton ↑</button></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ====================== Utilitaires ====================== */
+const $ = s => document.querySelector(s);
+const NN = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const noteName = n => NN[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
+const isBlack = n => [1,3,6,8,10].includes(((n % 12) + 12) % 12);
+function parseNote(s) {
+  s = String(s).trim();
+  if (/^\d+$/.test(s)) return Math.max(0, Math.min(127, +s));
+  const m = s.match(/^([A-Ga-g])([#b]?)(-?\d+)$/); if (!m) return null;
+  let n = NN.indexOf(m[1].toUpperCase()); if (m[2] === '#') n++; if (m[2] === 'b') n--;
+  const v = (parseInt(m[3], 10) + 1) * 12 + n; return v >= 0 && v <= 127 ? v : null;
+}
+const hex = a => a.map(b => b.toString(16).padStart(2, '0')).join(' ');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const n7 = (v, n) => Array.from({length: n}, (_, i) => (v >> (7 * i)) & 127);   // poids faible d'abord
+const r7 = a => a.reduce((s, v, i) => s + (v << (7 * i)), 0);
+function unpack(d) { let acc = 0, nb = 0; const o = []; for (const v of d) { acc |= v << nb; nb += 7; while (nb >= 8) { o.push(acc & 255); acc >>= 8; nb -= 8; } } return o; }
+const ascii = a => String.fromCharCode(...a.filter(c => c >= 32 && c < 127)).trim();
+function toast(msg, ms = 2500) { const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', ms); }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ====================== Journal ====================== */
+const logLines = [];
+function log(dir, x) {
+  if (x.length === 1 && (x[0] === 0xFE || x[0] === 0xF8)) return;
+  const s = x.length > 40 ? hex(x.slice(0, 24)) + ` … (${x.length} octets)` : hex(x);
+  logLines.push(new Date().toLocaleTimeString() + ' ' + dir + ' ' + s);
+  if (logLines.length > 300) logLines.splice(0, logLines.length - 300);
+  if (!log.p) log.p = requestAnimationFrame(() => { log.p = 0; const el = $('#log'); el.textContent = logLines.join('\n'); el.scrollTop = el.scrollHeight; });
+}
+
+/* ====================== Couche MIDI ====================== */
+const H = [0xF0, 0x07, 0x13, 0x00];
+let access = null, inp = null, out = null, demo = false;
+const waiters = new Set();
+let autoT = 0, busy = 0;
+let loadAt = 0;   // heure du dernier changement de Multi : les CC 7 reçus juste après ne sont pas des gestes de slider
+function onMidi(e) {
+  const x = [...e.data]; log('←', x);
+  if ((x[0] & 0xF0) === 0xB0 && x[1] === 7 && !probeMsgs && Date.now() - loadAt > 2500 && !busy && !saving) onVolCC(x[0] & 15, x[2]);
+  if (probeMsgs && x[0] < 0xF0 && (x[0] & 0xE0) !== 0x80) probeMsgs.push(x);   // sonde : tout sauf notes et SysEx
+  // L'Artis émet des Program Change quand on change de Multi ou de programme sur la façade : on relit (après la rafale)
+  if ((x[0] & 0xF0) === 0xC0) loadAt = Date.now();
+  if ((x[0] & 0xF0) === 0xC0 && !busy && !saving) { clearTimeout(autoT); autoT = setTimeout(async () => { if (!busy && !saving && !drag) { await readAll(); applyMixSoon(); } }, 600); }
+  for (const w of [...waiters]) if (w.match(x)) { waiters.delete(w); clearTimeout(w.t); w.ok(x); }
+}
+function send(x) { if (!out) return; log('→', x); out.send(x); }
+let chain = Promise.resolve();
+// Requêtes SysEx sérialisées : une seule question en vol à la fois.
+function ask(msg, match, ms = 1500) {
+  const p = chain.then(() => new Promise(ok => {
+    const w = {match, ok}; w.t = setTimeout(() => { waiters.delete(w); ok(null); }, ms);
+    waiters.add(w); send(msg);
+  }));
+  chain = p.catch(() => {}); return p;
+}
+
+const Artis = {
+  // Objet en cours : F0 07 13 00 0B 00 00 00 00 00 00 F7 → ID en x[5..6], nom à partir de x[11]
+  async current() {
+    const x = await ask([...H, 0x0B, 0, 0, 0, 0, 0, 0, 0xF7], x => x[0] === 0xF0 && x[4] === 0x0B && x[8] === 0);
+    if (!x) return null; const f = x.indexOf(0, 11);
+    return {id: x[5] * 128 + x[6], name: ascii(x.slice(11, f > 0 ? Math.min(f, 31) : 31))};
+  },
+  // Zone z (0-3) du tampon d'édition, décodage identique à outils/lire-zones.js
+  async zone(z) {
+    const x = await ask([...H, 0x0B, 0, 0, 0, 2, z, 0, 0xF7], x => x[0] === 0xF0 && x[4] === 0x0B && x[8] === 2 && x[9] === z, 2000);
+    if (!x) return null;
+    const d = unpack(x.slice(11, -3)); const t = (d[0x15] << 8) | d[0x16];
+    // [V 16/11, sonde de l’utilisateur] Volume d'entrée de la zone à +0x1B (param 0x18) : 255 = None, sinon 0-127. L'Artis l'envoie en CC 7 au chargement.
+    return {canal: d[3], prog: d[0x0C] * 128 + d[0x0D] + 1, lo: d[0x12], hi: d[0x13], tr: t > 32767 ? t - 65536 : t, ev: d[0x1B]};
+  },
+  // Nom d'un objet (type 0A programme, 1B Multi) par requête INFO 5A 20
+  names: {},
+  async name(type, id) {
+    const k = type + ':' + id; if (k in this.names) return this.names[k];
+    const x = await ask([...H, 0x5A, 0x20, 0x00, type, 0x01, ...n7(id, 2), 0xF7],
+      x => x[0] === 0xF0 && x[4] === 0x5A && x[7] === type && r7(x.slice(9, 11)) === id, 600);
+    const nm = x && x[5] === 0x05 ? ascii(x.slice(15, -2)) : null;
+    if (x) this.names[k] = nm; return nm;
+  },
+  // Édition en direct d'un paramètre de zone (CC 110-119 canal 1, comme SoundEditor). param = offset dans la zone − 3
+  setParam(z, param, val) {
+    const v = 0x2000 + val;
+    [[110, 5], [111, z], [112, 0], [113, 0], [114, param], [118, (v >> 7) & 127], [119, v & 127]].forEach(([c, x]) => send([0xB0, c, x]));
+  },
+  // Sélection d'un Multi : F0 07 13 00 11 <id msb> <id lsb> F7 (validé en mode Multi)
+  selectMulti(id) { send([...H, 0x11, (id >> 7) & 127, id & 127, 0xF7]); }
+};
+
+/* ====================== Sauvegarde en mémoire (logique de recherche/outils/sauver-multi.js v5, validée sur l'Artis) ====================== */
+const MULTI = 0x1B, MULTI_SIZE = 5213, ZBASE = 0x15D, ZLEN = 0x4C0;
+const pack = b => { let acc = 0, nb = 0; const o = []; for (const v of b) { acc |= v << nb; nb += 8; while (nb >= 7) { o.push(acc & 127); acc >>= 7; nb -= 7; } } if (nb) o.push(acc & 127); return o; };
+const xsum = d => { const s = d.reduce((a, b) => a + b, 0); return [s & 127, (s >> 7) & 127]; };
+const madr = id => [0x00, MULTI, 0x01, id & 127, (id >> 7) & 127];
+const sameAdr = (x, id) => x[0] === 0xF0 && x[4] === 0x5A && x[7] === MULTI && x[9] === (id & 127) && x[10] === ((id >> 7) & 127);
+const Mem = {
+  // INFO sans cache. Taille sur 3 octets, puis 1 octet drapeau (0 usine, 1 utilisateur). null = pas d'objet.
+  async info(id, ms = 400) {
+    const r = await ask([...H, 0x5A, 0x20, ...madr(id), 0xF7], x => sameAdr(x, id), ms);
+    if (!r || r[5] !== 0x05) return null;
+    return {size: r7(r.slice(11, 14)), user: r[14] === 1, name: ascii(r.slice(15, -2))};
+  },
+  async isFree(id) {
+    if (!(await this.info(1, 1500))) throw "l'Artis ne répond pas à INFO sur le Multi 1 : impossible de vérifier que l'emplacement est libre, rien écrit";
+    if (await this.info(id, 1000)) return false;
+    // double vérification : une demande de lecture (DUMP) de cet emplacement ne doit rien renvoyer non plus
+    const d = await ask([...H, 0x5A, 0x00, ...madr(id), 0, 0, 0, ...n7(16, 3), 0xF7], x => sameAdr(x, id) && x[5] === 0x01, 1000);
+    return !d;
+  },
+  async findFree(from = 257, to = 1024) {
+    if (!(await this.info(1, 1500))) throw "l'Artis ne répond pas";
+    for (let id = from; id <= to; id++) if (!(await this.info(id, 400))) return id;
+    return null;
+  },
+  async read(id) {
+    const i = await this.info(id, 1000); if (!i) throw `Multi ${id} introuvable en mémoire`;
+    const o = [];
+    for (let offs = 0; offs < i.size; offs += 2048) {
+      const n = Math.min(2048, i.size - offs); let r = null;
+      for (let k = 0; k < 3 && !r; k++) {
+        if (k) await sleep(1000);
+        r = await ask([...H, 0x5A, 0x00, ...madr(id), ...n7(offs, 3), ...n7(n, 3), 0xF7], x => sameAdr(x, id) && x[5] === 0x01 && r7(x.slice(11, 14)) === offs, 3000);
+      }
+      if (!r) throw `pas de réponse au bloc ${offs} du Multi ${id}`;
+      const d = r.slice(17, -3), [c1, c2] = xsum(d);
+      if (c1 !== r[r.length - 3] || c2 !== r[r.length - 2]) throw `checksum faux au bloc ${offs}`;
+      o.push(...unpack(d).slice(0, n));
+    }
+    return {...i, data: o};
+  },
+  async write(id, name, data, progress) {
+    const N = data.length;
+    const ack = (offs, n) => x => sameAdr(x, id) && x[5] === 0x02 && r7(x.slice(11, 14)) === offs && r7(x.slice(14, 17)) === n;
+    let r = await ask([...H, 0x5A, 0x06, ...madr(id), ...n7(N, 3), ...[...name].map(c => c.charCodeAt(0)), 0, 0, 0xF7], ack(0, N));
+    if (!r) throw "pas d'accusé à la création (5A 06) : rien écrit";
+    for (let offs = 0; offs < N; offs += 1024) {
+      const n = Math.min(1024, N - offs), e = pack(data.slice(offs, offs + n));
+      r = await ask([...H, 0x5A, 0x01, ...madr(id), ...n7(offs, 3), ...n7(n, 3), ...e, ...xsum(e), 0xF7], ack(offs, n));
+      if (!r) throw `pas d'accusé au bloc ${offs} : écriture incomplète, ne charge pas le Multi ${id}`;
+      progress && progress(Math.round(100 * (offs + n) / N));
+    }
+    r = await ask([...H, 0x5A, 0x21, ...madr(id), 0xF7], ack(0, 0), 3000);
+    if (!r) throw "pas d'accusé à la validation (5A 21)";
+  }
+};
+
+const P_LO = 0x0F, P_HI = 0x10, P_TR = 0x12;   // P_HI = 0x10 déduit, pas encore confirmé sur le clavier
+
+/* ====================== État ====================== */
+// Zones masquées à l'écran, par Multi (affichage seulement : rien n'est changé sur le clavier)
+const isHidden = z => !!(S.cur && DB.hidden && (DB.hidden[S.cur.id] || []).includes(z));
+function toggleHidden(z) { if (!S.cur) return; DB.hidden = DB.hidden || {}; const a = DB.hidden[S.cur.id] || []; DB.hidden[S.cur.id] = a.includes(z) ? a.filter(x => x !== z) : a.concat([z]); save(); renderZones(); renderTable(); }
+// ===== Volume / mute par zone =====
+// [V 16/11] Le slider de zone de l'Artis émet un CC 7 sur le canal de la zone, et ce volume n'est PAS dans les données du Multi.
+// La page envoie donc des CC 7 (live) et mémorise le mix par Multi (DB.mix) pour le renvoyer à chaque chargement.
+// [?] Que l'Artis applique un CC 7 reçu par USB comme son slider : à confirmer sur le clavier.
+const mixOf = z => { if (!S.cur) return {}; DB.mix = DB.mix || {}; const m = DB.mix[S.cur.id] = DB.mix[S.cur.id] || [{}, {}, {}, {}]; return m[z]; };
+const P_EV = 0x18, EV_NONE = 255;
+// [V 16/11] L'Artis refuse l'écriture en direct du param 0x18 (relecture = 255) : la page garde le volume voulu (mix.want),
+// le fait entendre en CC 7 et l'écrit dans l'objet Multi au moment de la sauvegarde (octets +0x1B et +0xA0, comme la façade).
+const evOf = z => { const zz = S.zones[z]; if (!zz) return null; const w = (mixOf(z) || {}).want; if (w !== undefined) return w; return zz.ev !== undefined && zz.ev !== EV_NONE ? zz.ev : null; };
+const progOf = z => { const w = (mixOf(z) || {}).wantProg; return w !== undefined ? w : (S.zones[z] || {}).prog; };
+const isMuted = z => evOf(z) === 0 || (evOf(z) === null && !!(mixOf(z) || {}).mute);
+// Ancien système (avant 1.7) : volume/mute gardés par la page, renvoyés en CC 7. Ne sert plus que pour les zones en « None ».
+function sendVol(z) { const zz = S.zones[z]; if (!zz || !out) return; const m = mixOf(z); const v = m.mute ? 0 : (m.vol ?? 100); send([0xB0 + ((zz.canal - 1) & 15), 7, v]); }
+let mixSaveT = 0, evT = [];
+function setVol(z, v) {
+  const zz = S.zones[z]; if (!zz) return;
+  send([0xB0 + ((zz.canal - 1) & 15), 7, v]);            // tout de suite à l'oreille
+  const m = mixOf(z); m.want = v; m.prev = v || m.prev;
+  clearTimeout(evT[z]); evT[z] = setTimeout(() => { save(); renderTable(); }, 300);
+}
+function setMute(z, on) {
+  const zz = S.zones[z]; if (!zz) return; const m = mixOf(z);
+  if (on) { if (evOf(z)) m.prev = evOf(z); setVol(z, 0); }
+  else setVol(z, m.prev || 100);
+  m.mute = false; setTimeout(renderTable, 150);
+}
+function applyMixSoon() { applyMix(); setTimeout(applyMix, 900); }
+function applyMix() { if (!S.cur || isProgramMode()) return; for (let z = 0; z < 4; z++) { const m = mixOf(z), zz = S.zones[z]; if (!zz) continue;
+  if (m.want !== undefined) send([0xB0 + ((zz.canal - 1) & 15), 7, m.want]);   // volume voulu, pas encore sauvegardé
+  /* 1.8.2 : plus d'envoi des anciens volumes mémorisés par la page (avant 1.7), ils écrasaient le volume du Multi */ } }
+// Slider bougé sur le clavier : on suit et on mémorise
+function onVolCC(ch, v) {
+  if (!S.cur || isProgramMode()) return;
+  // Depuis la 1.7 le volume de référence est le volume d'entrée du Multi : un geste sur le slider de l'Artis reste un réglage du moment, non mémorisé.
+}
+const S = { cur: null, zones: [null, null, null, null], check: ['', '', '', ''], range: [28, 103] };
+const ZC = ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)'];
+
+/* ====================== Connexion ====================== */
+function setStatus(txt, cls) { const s = $('#status'); s.textContent = txt; s.className = 'pill ' + (cls || ''); }
+function enableUI(on) { ['#btnCmp', '#btnExportFull', '#btnRead', '#btnRevert', '#btnAddFav', '#btnSlAddCur', '#btnSave', '#btnLib'].forEach(s => $(s).disabled = !on); }
+function fillPorts() {
+  const fill = (sel, ports) => {
+    const prev = sel.value; sel.innerHTML = '';
+    for (const p of ports) { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.appendChild(o); }
+    const art = ports.find(p => /artis/i.test(p.name));
+    if (ports.some(p => p.id === prev)) sel.value = prev; else if (art) sel.value = art.id;
+  };
+  fill($('#inSel'), [...access.inputs.values()]); fill($('#outSel'), [...access.outputs.values()]);
+}
+let connected = false;
+function setConnected(on) {
+  connected = on;
+  $('#btnConnect').textContent = on ? 'Déconnecter' : "Connecter l'Artis";
+  $('#btnConnect').classList.toggle('primary', !on);
+  $('#btnDemo').style.display = on ? 'none' : '';
+  $('#btnPorts').style.display = on || access ? '' : 'none';
+}
+function disconnect() {
+  if (inp) { inp.onmidimessage = null; try { inp.close && inp.close(); } catch (e) {} }
+  try { out && out.close && out.close(); } catch (e) {}
+  manualOff = true; inp = out = null; demo = false; S.cur = null; S.zones = [null, null, null, null];
+  setStatus('Déconnecté'); enableUI(false); setConnected(false); renderCur(); renderZones(); renderTable();
+  toast('Port MIDI libéré : SoundEditor peut maintenant s\'en servir.');
+}
+let manualOff = false, autoT2 = 0;
+async function connect(quiet = false) {
+  if (!navigator.requestMIDIAccess) {
+    setStatus('Web MIDI indisponible', 'err');
+    alertBox("Ce navigateur n'expose pas Web MIDI ici. Dans Brave, ouvre la page via http://localhost (voir le mode d'emploi) et autorise l'accès MIDI.");
+    return;
+  }
+  try {
+    access = await navigator.requestMIDIAccess({sysex: true});
+  } catch (e) {
+    setStatus('Accès MIDI refusé', 'err'); if (quiet) return;
+    alertBox('Accès MIDI/SysEx refusé (' + e.name + '). Clique sur l\'icône à gauche de l\'adresse, autorise « Appareils MIDI », puis recharge la page.');
+    return;
+  }
+  access.onstatechange = () => {
+    fillPorts();
+    if (inp && inp.state === 'disconnected') { setStatus('Artis débranché', 'err'); enableUI(false); setConnected(false); inp.onmidimessage = null; inp = out = null; }
+    // Artis (re)branché : on se reconnecte tout seul, sauf si tu as cliqué « Déconnecter »
+    if (!connected && !manualOff && !demo) { clearTimeout(autoT2); autoT2 = setTimeout(() => { if (!connected && hasArtisPorts()) openPorts(true); }, 1000); }
+  };
+  fillPorts();
+  await openPorts(quiet);
+}
+const hasArtisPorts = () => access && [...access.inputs.values()].some(p => /artis/i.test(p.name) && p.state !== 'disconnected') && [...access.outputs.values()].some(p => /artis/i.test(p.name) && p.state !== 'disconnected');
+async function openPorts(quiet = false) {
+  if (inp) inp.onmidimessage = null;
+  inp = access.inputs.get($('#inSel').value); out = access.outputs.get($('#outSel').value);
+  if (quiet && !hasArtisPorts()) { inp = out = null; setStatus('Artis non branché : il sera connecté dès que tu le branches', 'err'); setConnected(false); return; }
+  if (!inp || !out) { setStatus('Artis introuvable', 'err'); $('#ports').style.display = ''; setConnected(false); alertBox('Aucun port MIDI « Artis » trouvé. Vérifie le câble USB et ferme SoundEditor (un seul programme à la fois peut tenir le port).'); return; }
+  inp.onmidimessage = onMidi;
+  setStatus('Connexion…');
+  const c = await Artis.current();
+  if (!c) { setStatus("L'Artis ne répond pas", 'err'); setConnected(false); if (quiet) return; $('#ports').style.display = ''; alertBox("Pas de réponse SysEx. SoundEditor est-il fermé ? Le bon port est-il choisi ?"); return; }
+  setStatus(demo ? 'Démo (Artis simulé)' : 'Connecté : ' + inp.name, demo ? 'demo' : 'ok');
+  enableUI(true); setConnected(true);
+  await readAll(c);
+}
+function alertBox(msg) { toast(msg, 7000); }
+
+/* ====================== Lecture ====================== */
+async function readAll(cur) {
+  S.cur = cur || await Artis.current();
+  renderCur();
+  for (let z = 0; z < 4; z++) { S.zones[z] = await Artis.zone(z); S.check[z] = ''; }
+  renderZones();
+  for (let z = 0; z < 4; z++) if (S.zones[z]) { const p = S.zones[z].prog; S.zones[z].progName = await Artis.name(0x0A, p); }
+  renderTable();
+}
+// [D] En mode Programme, 0B 00 renvoie l'objet « Artis Control » (n° 254 vu chez l’utilisateur le 15/11), pas un Multi.
+const isProgramMode = () => !!S.cur && /^artis control$/i.test((S.cur.name || '').trim());
+function renderCur() {
+  $('#curName').textContent = S.cur ? (S.cur.name || '(sans nom)') : '—';
+  $('#curName').className = S.cur ? '' : 'muted';
+  $('#curId').textContent = S.cur ? 'Multi n° ' + S.cur.id : '';
+  const pm = isProgramMode(); $('#modeWarn').classList.toggle('on', pm);
+  $('#progInfo').textContent = pm && S.prog ? ` Programme chargé depuis la page : n° ${S.prog.id}${S.prog.name ? ' « ' + S.prog.name + ' »' : ''}.` : ''; $('#curId').style.display = pm ? 'none' : '';
+  ['#btnSave', '#btnAddFav', '#btnSlAddCur', '#btnRevert'].forEach(q => $(q).disabled = !out || pm);
+  if (pm || (svSrc && S.cur && S.cur.id !== svSrc.id && !saving)) { $('#savePanel').classList.remove('on'); $('#btnSave').classList.remove('open'); svSrc = null; }
+  renderSaveStatus(); renderPlan && renderPlan();
+  renderFavs(); renderSetlist(); renderLib();
+}
+
+/* ====================== Clavier ====================== */
+let geom = null;
+function buildGeom() {
+  const [a, b] = S.range, W = $('#kbd').clientWidth || 1000;
+  const whites = []; for (let n = a; n <= b; n++) if (!isBlack(n)) whites.push(n);
+  const ww = W / whites.length, bw = ww * 0.62, k = {};
+  let wi = 0;
+  for (let n = a; n <= b; n++) {
+    if (!isBlack(n)) { k[n] = {x: wi * ww, w: ww}; wi++; }
+    else k[n] = {x: wi * ww - bw / 2, w: bw};
+  }
+  geom = {a, b, W, k};
+}
+/* ===== Jouer à la souris sur le clavier dessiné ===== */
+// Envoie Note On/Off sur le canal de chaque zone dont la plage contient la note (un envoi par canal).
+// [?] Que l'Artis joue ces notes reçues par USB comme son propre clavier : à confirmer.
+const held = new Map();   // note → canaux
+let latch = false;
+// [V 16/11] Le MIDI reçu par USB joue le son du canal sans passer par les réglages de zone (transpose, zone inactive) :
+// la page applique elle-même la plage de notes, le transpose et le mute de chaque zone.
+function targetsFor(n) {
+  const t = new Map();
+  S.zones.forEach((z, k) => { if (z && n >= z.lo && n <= z.hi && !isMuted(k) && !isHidden(k)) { const c = (z.canal - 1) & 15, m = n + (z.tr || 0); if (m >= 0 && m <= 127) t.set(c + ':' + m, [c, m]); } });
+  if (!S.zones.some(Boolean)) t.set('0:' + n, [0, n]);
+  return [...t.values()];
+}
+function noteOn(n) { if (!out || held.has(n)) return; const t = targetsFor(n); t.forEach(([c, m]) => send([0x90 + c, m, 100])); held.set(n, t); keyMark(n, true); }
+function noteOff(n) { const t = held.get(n); if (!t) return; t.forEach(([c, m]) => send([0x80 + c, m, 0])); held.delete(n); keyMark(n, false); }
+function allOff() { [...held.keys()].forEach(noteOff); }
+function keyMark(n, on) { const k = document.querySelector(`#kbd .key[data-n="${n}"]`); if (k) k.classList.toggle('on', on); }
+function setupPlay() {
+  const kb = $('#kbd'); let down = null;
+  kb.addEventListener('pointerdown', e => {
+    const k = e.target.closest('.key'); if (!k) return; e.preventDefault();
+    if (!out) { toast('Connecte d\'abord l\'Artis'); return; }
+    const n = +k.dataset.n;
+    if (latch) { held.has(n) ? noteOff(n) : noteOn(n); return; }
+    down = n; noteOn(n); kb.setPointerCapture(e.pointerId);
+  });
+  kb.addEventListener('pointermove', e => {           // glissando en restant appuyé
+    if (down === null || latch) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY), k = el && el.closest && el.closest('#kbd .key');
+    if (k && +k.dataset.n !== down) { noteOff(down); down = +k.dataset.n; noteOn(down); }
+  });
+  const up = () => { if (down !== null) { noteOff(down); down = null; } };
+  kb.addEventListener('pointerup', up); kb.addEventListener('pointercancel', up);
+  $('#btnLatch').onclick = () => { latch = !latch; $('#btnLatch').classList.toggle('primary', latch); $('#btnLatch').textContent = latch ? '🎹 Accord : ON' : '🎹 Accord'; if (!latch) allOff(); };
+  $('#btnAllOff').onclick = () => { allOff(); for (let c = 0; c < 16; c++) send([0xB0 + c, 123, 0]); };
+}
+function renderKbd() {
+  buildGeom(); const el = $('#kbd'); el.innerHTML = '';
+  for (let n = geom.a; n <= geom.b; n++) {
+    const d = document.createElement('div'), g = geom.k[n];
+    d.className = 'key ' + (isBlack(n) ? 'b' : 'w') + (held.has(n) ? ' on' : ''); d.dataset.n = n; d.style.left = g.x + 'px'; d.style.width = g.w + 'px';
+    if (n % 12 === 0) d.innerHTML = `<span class="lbl">${noteName(n)}</span>`;
+    el.appendChild(d);
+  }
+}
+const left = n => n < geom.a ? 0 : n > geom.b ? geom.W : geom.k[n].x;
+const right = n => n > geom.b ? geom.W : n < geom.a ? 0 : geom.k[n].x + geom.k[n].w;
+function xToNote(x) {
+  if (x < 0) return 0; if (x > geom.W) return 127;
+  let best = geom.a, bd = 1e9;
+  for (let n = geom.a; n <= geom.b; n++) { const g = geom.k[n], c = g.x + g.w / 2, d = Math.abs(c - x) + (isBlack(n) ? 0 : 0.01); if (d < bd) { bd = d; best = n; } }
+  return best;
+}
+function renderZones() {
+  const box = $('#zbars'); box.innerHTML = '';
+  S.zones.forEach((z, i) => {
+    if (isHidden(i)) return;
+    const row = document.createElement('div'); row.className = 'zrow';
+    if (z) {
+      const L = left(z.lo), R = right(z.hi);
+      const bar = document.createElement('div'); bar.className = 'bar';
+      bar.style.background = ZC[i]; bar.style.left = L + 'px'; bar.style.width = Math.max(6, R - L) + 'px';
+      const tr = z.tr ? ` · ${z.tr > 0 ? '+' : ''}${z.tr}` : '';
+      bar.innerHTML = `<div class="h l" data-h="lo"></div>Z${i + 1} · ${noteName(z.lo)}–${noteName(z.hi)}${tr}<div class="h r" data-h="hi"></div>`;
+      if (z.lo < geom.a) bar.insertAdjacentHTML('beforeend', '<span class="clip" style="left:14px" title="La zone continue sous le bord gauche du clavier dessiné (jusqu\'à ' + noteName(z.lo) + ')">◀</span>');
+      if (z.hi > geom.b) bar.insertAdjacentHTML('beforeend', '<span class="clip" style="right:14px" title="La zone continue au-delà du bord droit du clavier dessiné (jusqu\'à ' + noteName(z.hi) + ')">▶</span>');
+      bar.addEventListener('pointerdown', e => startDrag(e, i, e.target.dataset.h || 'move'));
+      row.appendChild(bar);
+    } else row.innerHTML = '<span class="muted" style="padding:8px;display:block;font-size:12px">Zone ' + (i + 1) + ' non lue</span>';
+    box.appendChild(row);
+  });
+}
+
+/* ====================== Édition en direct ====================== */
+function applyRange(z, lo, hi) {
+  const cur = S.zones[z]; if (!cur) return;
+  if (isProgramMode()) { toast('Passe d\'abord l\'Artis en mode Multi'); renderZones(); renderTable(); return; }
+  lo = Math.max(0, Math.min(127, lo)); hi = Math.max(0, Math.min(127, hi));
+  if (lo > hi) return;
+  // ordre d'envoi : on évite un état transitoire basse > haute
+  const sends = [];
+  if (lo !== cur.lo) sends.push([P_LO, lo]);
+  if (hi !== cur.hi) sends.push([P_HI, hi]);
+  if (hi > cur.hi) sends.reverse();
+  for (const [p, v] of sends) Artis.setParam(z, p, v);
+  if (sends.length) { cur.lo = lo; cur.hi = hi; S.check[z] = 'pending'; renderZones(); renderTable(); }
+}
+// [?] Programme de zone : paramètres 0x09 (banque, offset +0x0C) et 0x0A (PC, offset +0x0D) DÉDUITS de la règle « param = offset − 3 ».
+// La relecture automatique dira si l'Artis les accepte.
+async function applyProgram(z, n) {
+  const cur = S.zones[z]; if (!cur) return;
+  if (isProgramMode()) { toast('Passe d\'abord l\'Artis en mode Multi'); renderTable(); return; }
+  if (!(n >= 1 && n <= 16383) || n === progOf(z)) { renderTable(); return; }
+  if (n === cur.prog) { delete mixOf(z).wantProg; save(); renderTable(); return; }
+  // [V 17/11] L'Artis refuse ce changement en direct (relecture = ancien programme). Comme pour le volume, la page le garde
+  // et l'écrit dans l'objet Multi à la sauvegarde (+0x0C banque, +0x0D PC), puis recharge le Multi pour qu'on l'entende.
+  const m = mixOf(z); m.wantProg = n;
+  m.wantName = await Artis.name(0x0A, n); save();
+  S.check[z] = 'prog'; renderTable();
+  toast(`Programme ${n} « ${m.wantName || ''} » retenu pour la zone ${z + 1} : tu l'entendras après 💾 (l'Artis n'accepte pas ce changement en direct)`, 6000);
+}
+function applyTranspose(z, v) {
+  const cur = S.zones[z]; if (!cur) return;
+  if (isProgramMode()) { toast('Passe d\'abord l\'Artis en mode Multi'); return; }
+  v = Math.max(-127, Math.min(127, v)); if (v === cur.tr) return;
+  Artis.setParam(z, P_TR, v); cur.tr = v; S.check[z] = 'pending'; renderZones(); renderTable(); scheduleVerify(z);
+}
+let drag = null;
+function startDrag(e, z, mode) {
+  e.preventDefault();
+  const r = $('#kbd').getBoundingClientRect(), zz = S.zones[z];
+  drag = {z, mode, r, n0: xToNote(e.clientX - r.left), lo0: zz.lo, hi0: zz.hi};
+  // écoute sur window : la barre est redessinée pendant le glissement
+  const mv = ev => {
+    const n = xToNote(ev.clientX - drag.r.left);
+    if (drag.mode === 'lo') applyRange(z, Math.min(n, S.zones[z].hi), S.zones[z].hi);
+    else if (drag.mode === 'hi') applyRange(z, S.zones[z].lo, Math.max(n, S.zones[z].lo));
+    else { let d = n - drag.n0; d = Math.max(-drag.lo0, Math.min(127 - drag.hi0, d)); applyRange(z, drag.lo0 + d, drag.hi0 + d); }
+  };
+  const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); drag = null; scheduleVerify(z, 150); };
+  window.addEventListener('pointermove', mv);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
+const vt = [];
+function scheduleVerify(z, ms = 500) {
+  if (!$('#chkVerify').checked) { S.check[z] = ''; renderTable(); return; }
+  clearTimeout(vt[z]); vt[z] = setTimeout(() => verify(z), ms);
+}
+async function verify(z) {
+  const want = S.zones[z]; if (!want || drag) return;
+  const snap = {lo: want.lo, hi: want.hi, tr: want.tr, prog: want.prog, ev: want.ev};
+  const got = await Artis.zone(z); if (!got) { S.check[z] = 'nores'; renderTable(); return; }
+  if (S.zones[z] !== want || ['lo', 'hi', 'tr', 'prog', 'ev'].some(k => want[k] !== snap[k])) return;   // modifié entre-temps : une autre vérif suivra
+  const bad = ['lo', 'hi', 'tr', 'prog'].filter(k => got[k] !== want[k] && !(k === 'prog' && (mixOf(z) || {}).wantProg !== undefined));
+  S.check[z] = bad.length ? 'bad:' + bad.map(k => ({lo: 'basse', hi: 'haute', tr: 'transpose', prog: 'programme', ev: 'volume'}[k] + ' = ' + (k === 'lo' || k === 'hi' ? noteName(got[k]) : got[k]))).join(', ') : 'ok';
+  if (bad.length) { if (got.prog !== want.prog) want.progName = await Artis.name(0x0A, got.prog); Object.assign(want, {lo: got.lo, hi: got.hi, tr: got.tr, prog: got.prog, ev: got.ev}); renderZones(); }
+  renderTable();
+}
+
+/* ====================== Tableau des zones ====================== */
+function renderTable() {
+  const tb = $('#ztable'); tb.innerHTML = '';
+  const nh = [0, 1, 2, 3].filter(isHidden);
+  // Volume d'entrée « None » : la zone garde le volume laissé par le Multi précédent (même canal), d'où des sons qui « se ressemblent »
+  const nn = [0, 1, 2, 3].filter(k => S.zones[k] && !isHidden(k) && evOf(k) === null);
+  if (nn.length && S.cur && !isProgramMode()) { const tr = document.createElement('tr'); tr.innerHTML = '<td colspan="8" class="note warn">⚠ ' + nn.map(k => 'Zone ' + (k + 1)).join(', ') + ' : volume « None », la zone garde le volume laissé par le Multi d\'avant. Règle son slider (puis 💾) pour qu\'elle sonne toujours pareil. <button class="small">tout mettre à 100</button></td>'; tr.querySelector('button').onclick = () => { nn.forEach(k => setVol(k, 100)); renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
+  if (nh.length) { const tr = document.createElement('tr'); tr.innerHTML = `<td colspan="8" class="note">${nh.map(k => 'Zone ' + (k + 1)).join(', ')} masquée${nh.length > 1 ? 's' : ''} pour ce Multi · <button class="small" id="btnShowAll">tout afficher</button></td>`; tr.querySelector('button').onclick = () => { DB.hidden[S.cur.id] = []; save(); renderZones(); renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
+  S.zones.forEach((z, i) => {
+    if (isHidden(i)) return;
+    const tr = document.createElement('tr');
+    if (!z) { tr.innerHTML = `<td><span class="zdot" style="background:${ZC[i]}"></span>Zone ${i + 1}</td><td colspan="7" class="muted">non lue</td>`; tb.appendChild(tr); return; }
+    const c = S.check[i];
+    const st = mixOf(i).wantProg !== undefined ? '<span class="warn">💾 programme à sauvegarder</span>' : c === 'ok' ? '<span class="okc">✓ confirmé</span>' : c === 'pending' ? '<span class="muted">…</span>'
+      : mixOf(i).wantProg !== undefined ? '<span class="warn" title="Changement refusé en direct par l’Artis : appliqué à la sauvegarde">💾 programme à sauvegarder</span>' : c === 'nores' ? '<span class="warn">pas de réponse</span>' : c.startsWith('bad:') ? `<span class="err" title="L'Artis a gardé une autre valeur">⚠ l'Artis indique ${esc(c.slice(4))}</span>` : '';
+    tr.innerHTML = `<td><span class="zdot" style="background:${ZC[i]}"></span>Zone ${i + 1} <button class="small" data-hide="1" title="Masquer cette zone à l'écran pour ce Multi (elle reste active sur le clavier)">masquer</button></td>
+      <td>${z.canal}</td>
+      <td><input type="number" data-k="prog" min="1" max="16383" value="${progOf(i)}" style="width:70px" title="Numéro du programme : appliqué à la sauvegarde (💾)"> <span class="muted">${esc((mixOf(i).wantProg !== undefined ? mixOf(i).wantName : z.progName) || '')}</span></td>
+      <td><input type="text" data-k="lo" value="${noteName(z.lo)}" title="${z.lo}"> <span class="muted">${z.lo}</span></td>
+      <td><input type="text" data-k="hi" value="${noteName(z.hi)}" title="${z.hi}"> <span class="muted">${z.hi}</span></td>
+      <td><div class="tr"><button class="small" data-t="-1">−</button><output>${z.tr > 0 ? '+' : ''}${z.tr}</output><button class="small" data-t="1">+</button><button class="small" data-t="0" title="Remettre à 0">0</button></div></td>
+      <td><div class="tr" title="Volume d'entrée de la zone : enregistré dans le Multi quand tu sauvegardes, repris par les boutons Favorites"><button class="small" data-m="1" title="Couper / rétablir la zone (volume d'entrée 0)" style="${isMuted(i) ? 'background:var(--err);color:#fff' : ''}">${isMuted(i) ? 'muet' : 'mute'}</button><input type="range" min="0" max="127" data-v="1" value="${evOf(i) ?? (mixOf(i).vol ?? 100)}" style="width:110px;--p:${((evOf(i) ?? (mixOf(i).vol ?? 100)) / 127 * 100).toFixed(1)}%"><output>${evOf(i) ?? 'None'}</output></div></td>
+      <td class="state">${st}</td>`;
+    tr.querySelectorAll('input[data-k]').forEach(inp => inp.addEventListener('change', () => {
+      const v = parseNote(inp.value); if (v === null) { toast('Note invalide : tape par ex. C4, F#2 ou 60'); renderTable(); return; }
+      const k = inp.dataset.k, lo = k === 'lo' ? v : z.lo, hi = k === 'hi' ? v : z.hi;
+      if (lo > hi) { toast('La note basse doit rester sous la note haute'); renderTable(); return; }
+      applyRange(i, lo, hi); scheduleVerify(i);
+    }));
+    tr.querySelector('button[data-hide]').onclick = () => toggleHidden(i);
+    const rg = tr.querySelector('input[data-v]'), ov = rg.nextElementSibling;
+    rg.oninput = () => { ov.textContent = rg.value; rg.style.setProperty('--p', (rg.value / 127 * 100).toFixed(1) + '%'); setVol(i, +rg.value); };
+    tr.querySelector('button[data-m]').onclick = () => setMute(i, !isMuted(i));
+    tr.querySelector('input[data-k=prog]').addEventListener('change', e => applyProgram(i, parseInt(e.target.value, 10)));
+    tr.querySelectorAll('button[data-t]').forEach(b => b.addEventListener('click', () => {
+      const d = +b.dataset.t; applyTranspose(i, d === 0 ? 0 : z.tr + d);
+    }));
+    tb.appendChild(tr);
+  });
+}
+
+/* ====================== Favoris et setlists (stockage local) ====================== */
+const KEY = 'artisEditor.v1';
+let DB = {favs: [], setlists: [], curSl: null};
+// Transpose par morceau : champ « transpose » ; s'il manque, on le reprend d'une note du type « Transpose +2 | … »
+function migrate(db) {
+  for (const sl of db.setlists || []) for (const it of sl.items || []) {
+    if (typeof it.transpose !== 'number') { const m = /transpose\s*([+-]?\d+)/i.exec(it.note || ''); it.transpose = m ? parseInt(m[1], 10) : 0; }
+  }
+  return db;
+}
+function load() { try { const j = JSON.parse(localStorage.getItem(KEY)); if (j && Array.isArray(j.favs)) DB = migrate(Object.assign(DB, j)); } catch (e) {} }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { toast('Stockage local indisponible : exporte tes favoris pour ne pas les perdre.'); } }
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+// Programme : Bank Select + Program Change canal 1 (validé le 15/11 : l'Artis charge le programme et quitte le mode Multi)
+async function goProgram(id, label) {
+  if (!out) { toast('Connecte d\'abord l\'Artis'); return false; }
+  busy++;
+  try {
+    const i = id - 1; send([0xB0, 0, 0]); send([0xB0, 32, i >> 7]); send([0xC0, i & 127]);
+    S.prog = {id, name: label}; await sleep(500); await readAll();
+    toast('▶ ' + (label || 'Programme ' + id)); return true;
+  } finally { setTimeout(() => busy--, 800); }
+}
+const kindOf = f => f.kind === 'prog' ? 'prog' : 'multi';
+const noteTxt = n => (n || '').replace(/^\s*transpose\s*[+-]?\d+\s*\|?\s*/i, '');   // le transpose a déjà son affichage
+const trTxt = t => t ? (t > 0 ? '+' : '') + t : '0';
+// Morceau de setlist : charge le son, puis ajoute le transpose du morceau aux 4 zones (tampon d'édition seulement, rien n'est sauvegardé)
+let lastSong = null;
+async function goSong(it) {
+  const ok = await goFav(it); if (!ok) return false;
+  const t = it.transpose || 0;
+  if (!t) { if (lastSong && S.cur && lastSong.id === S.cur.id && S.zones.every((z, k) => !z || z.tr === lastSong.trs[k])) S.zones.forEach((z, k) => { if (z) applyTranspose(k, z.tr - lastSong.t); }); lastSong = null; return true; }
+  if (kindOf(it) === 'prog') { toast('⚠ Transpose ' + trTxt(t) + ' non appliqué : impossible sur un programme seul, utilise un Multi', 5000); return true; }
+  // Si l'Artis n'a pas réinitialisé le tampon en rechargeant le même Multi, on repart de la valeur d'origine (pas de cumul)
+  const L = lastSong, same = L && S.cur && L.id === S.cur.id && S.zones.every((z, k) => !z || z.tr === L.trs[k]);
+  const base = S.zones.map((z, k) => z ? (same ? z.tr - L.t : z.tr) : 0);
+  S.zones.forEach((z, k) => { if (z) applyTranspose(k, base[k] + t); });
+  lastSong = {id: S.cur && S.cur.id, t, trs: S.zones.map(z => z ? z.tr : null)};
+  toast('▶ ' + (it.title || it.name) + ' · transpose ' + trTxt(t));
+  return true;
+}
+let svPlan = null;   // Multi à créer pour un bouton : {id, name, slot}
+const asciiName = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7E]/g, '').slice(0, 16);
+function renderPlan() {
+  const P = $('#planBar'), on = svPlan && S.cur && !isProgramMode() && S.cur.id !== svPlan.id && (svPlan.src || S.cur.id !== svPlan.start);
+  P.classList.toggle('on', !!svPlan);
+  if (!svPlan) return;
+  P.innerHTML = `🛠 Bouton ${svPlan.slot} « ${esc(svPlan.label)} » : le Multi n° ${svPlan.id} n'existe pas encore. ` +
+    (on ? `Tu es sur le Multi de départ n° ${S.cur.id} « ${esc(S.cur.name)} » : modifie-le, puis 💾 l'écrira en n° ${svPlan.id}.` : 'Choisis un Multi de départ dans la bibliothèque (ouverte plus bas), puis modifie-le et 💾.') +
+    ' <button class="small" id="planX">annuler</button>';
+  $('#planX').onclick = () => { svPlan = null; renderPlan(); };
+}
+async function goFav(f) {
+  if (kindOf(f) === 'prog') return goProgram(f.multi, f.label || f.title || f.name);
+  if (!out) { toast('Connecte d\'abord l\'Artis'); return false; }
+  svPlan = null;
+  if (f.src || f.q || f.fam) {
+    const i = await Mem.info(f.multi, 800);
+    if (!i) {
+      svPlan = {id: f.multi, name: asciiName(f.label || f.name), label: f.label || f.name, slot: f.slot || '', src: f.src || 0, start: S.cur ? S.cur.id : null};
+      if (f.src) { const ok = await goMulti(f.src, 'Départ pour ' + (f.label || f.name)); renderPlan(); return ok; }
+      // Pas de Multi de départ imposé : on ouvre la bibliothèque sur la bonne famille
+      $('#libBox').open = true; libFam = f.fam || 'Tous'; $('#libQ').value = f.q || ''; renderLib();
+      if (f.q && LIB && !LIB.list.some(m => m.name.toLowerCase().includes(f.q))) { $('#libQ').value = ''; renderLib(); }
+      renderPlan(); $('#libBox').scrollIntoView({behavior: 'smooth', block: 'start'});
+      if (!LIB) toast('Clique « Lire la liste depuis l\'Artis » pour voir les Multis de départ', 5000);
+      return false;
+    }
+  }
+  renderPlan();
+  return goMulti(f.multi, f.title || f.label || f.name);
+}
+const kindLbl = f => (kindOf(f) === 'prog' ? 'Programme ' : 'Multi ') + f.multi;
+async function goMulti(id, label) {
+  if (!out) { toast('Connecte d\'abord l\'Artis'); return false; }
+  busy++; try { return await goMulti2(id, label); } finally { setTimeout(() => busy--, 800); }
+}
+async function goMulti2(id, label) {
+  S.prog = null; loadAt = Date.now(); Artis.selectMulti(id);
+  await sleep(350);
+  const c = await Artis.current();
+  if (!c || c.id !== id) {
+    // Cause la plus probable : ce n° de Multi n'existe pas sur le clavier
+    const exists = c ? await Mem.info(id, 800) : null;
+    S.loadErr = !c ? "L'Artis ne répond pas : vérifie le câble USB"
+      : !exists ? `Le Multi n° ${id} n'existe pas sur ce clavier : crée-le (💾) ou corrige le n° du morceau`
+      : `L'Artis n'a pas chargé le Multi ${id} « ${exists.name} » : est-il bien en mode Multi ?`;
+    toast('⚠ ' + S.loadErr, 6000);
+    if (c) { S.cur = c; renderCur(); }
+    return false;
+  }
+  await readAll(c); applyMixSoon();
+  toast('▶ ' + (label || c.name));
+  return true;
+}
+const isOnFav = f => kindOf(f) === 'prog' ? (isProgramMode() && S.prog && S.prog.id === f.multi) : (S.cur && !isProgramMode() && S.cur.id === f.multi);
+const slotFav = k => DB.favs.find(f => f.slot === k);
+const freeSlot = () => { for (let k = 1; k <= 10; k++) if (!slotFav(k)) return k; return 0; };
+function favsChanged() { save(); renderFavs(); fillFavSel(); }
+function renderFavs() {
+  // 10 boutons du haut
+  const bank = $('#bank'); bank.innerHTML = '';
+  for (let k = 1; k <= 10; k++) {
+    const f = slotFav(k), d = document.createElement('div');
+    d.dataset.slot = k;
+    if (!f) {
+      d.className = 'slot empty';
+      d.innerHTML = `<span class="n">${k % 10}</span><div class="nm">${S.cur && !isProgramMode() ? '+ Multi en cours' : 'vide'}</div>`;
+      d.onclick = () => { if (S.cur && !isProgramMode()) addFav(S.cur.id, S.cur.name, 'multi', k); else toast('Charge un Multi, ou utilise « + Multi n°… »'); };
+    } else {
+      d.className = 'slot' + (isOnFav(f) ? ' on' : ''); d.draggable = true;
+      const songs = ((curSl() || {}).items || []).filter(it => it.multi === f.multi && kindOf(it) === kindOf(f)).map(it => it.title || it.name);
+      const todo = kindOf(f) === 'multi' && LIB && !LIB.list.some(m => m.id === f.multi);
+      d.title = songs.length ? 'Morceaux : ' + songs.join(', ') : '';
+      d.innerHTML = `<span class="n">${k % 10}</span><div class="nm">${esc(f.label || f.name)}</div><div class="id">${kindLbl(f)}${todo ? ' · <span class="todo">à créer</span>' : ''}${songs.length > 1 ? ' · ' + songs.length + ' morceaux' : ''}</div>
+        <div class="act"><button class="small" data-a="ren" title="Renommer">✎</button><button class="small" data-a="off" title="Retirer du bouton (le son reste dans « Autres sons »)">✕</button></div>`;
+      d.onclick = e => {
+        const a = e.target.dataset && e.target.dataset.a;
+        if (a === 'ren') { const n = prompt('Nom affiché (ex. le morceau)', f.label || f.name); if (n !== null) { f.label = n.trim(); favsChanged(); } return; }
+        if (a === 'off') { delete f.slot; favsChanged(); return; }
+        goFav(f);
+      };
+      d.ondragstart = e => e.dataTransfer.setData('text/plain', String(k));
+    }
+    d.ondragover = e => { e.preventDefault(); d.classList.add('dragover'); };
+    d.ondragleave = () => d.classList.remove('dragover');
+    d.ondrop = e => { e.preventDefault(); d.classList.remove('dragover'); const from = +e.dataTransfer.getData('text/plain'); if (!from || from === k) return;
+      const A = slotFav(from), B = slotFav(k); if (A) A.slot = k; if (B) B.slot = from; favsChanged(); };
+    bank.appendChild(d);
+  }
+  // Autres sons
+  const box = $('#favs'); box.innerHTML = '';
+  const rest = DB.favs.map((f, i) => [f, i]).filter(([f]) => !f.slot);
+  if (!rest.length) box.innerHTML = '<span class="muted" style="grid-column:1/-1">Aucun. Les sons ajoutés quand les 10 boutons sont pleins arrivent ici.</span>';
+  rest.forEach(([f, i]) => {
+    const d = document.createElement('div');
+    d.className = 'fav' + (isOnFav(f) ? ' on' : '');
+    d.innerHTML = `<div class="nm">${esc(f.label || f.name)}</div><div class="id">${kindLbl(f)}${f.label && f.label !== f.name ? ' · ' + esc(f.name) : ''}</div>
+      <div class="act"><button class="small" data-a="slot" title="Placer sur un des 10 boutons">⇧</button><button class="small" data-a="ren" title="Renommer">✎</button><button class="small" data-a="del" title="Supprimer">✕</button></div>`;
+    d.addEventListener('click', e => {
+      const a = e.target.dataset && e.target.dataset.a;
+      if (a === 'del') { if (confirm('Supprimer ce son de la page ? (le Multi reste dans le clavier)')) { DB.favs.splice(i, 1); favsChanged(); } return; }
+      if (a === 'ren') { const n = prompt('Nom affiché', f.label || f.name); if (n !== null) { f.label = n.trim(); favsChanged(); } return; }
+      if (a === 'slot') { const v = prompt('Sur quel bouton (1 à 10) ? Le son qui y est passera dans « Autres sons ».', String(freeSlot() || 1)); const k = parseInt(v, 10);
+        if (k >= 1 && k <= 10) { const o = slotFav(k); if (o) delete o.slot; f.slot = k; favsChanged(); } return; }
+      goFav(f);
+    });
+    box.appendChild(d);
+  });
+}
+function fillFavSel() {
+  const s = $('#slAddFav'); s.innerHTML = '';
+  DB.favs.forEach((f, i) => { const o = document.createElement('option'); o.value = i; o.textContent = f.label || f.name; s.appendChild(o); });
+}
+async function addFav(multi, name, kind = 'multi', slot = 0) {
+  const ex = DB.favs.find(f => f.multi === multi && kindOf(f) === kind);
+  if (ex) {
+    if (slot && ex.slot !== slot) { if (ex.slot) { const o = slotFav(slot); if (o) o.slot = ex.slot; } ex.slot = slot; favsChanged(); toast('Placé sur le bouton ' + slot); }
+    else toast(ex.slot ? 'Déjà sur le bouton ' + ex.slot : 'Déjà dans « Autres sons »');
+    return;
+  }
+  const k = slot || freeSlot();
+  DB.favs.push({id: uid(), kind, multi, name: name || ((kind === 'prog' ? 'Programme ' : 'Multi ') + multi), label: '', ...(k ? {slot: k} : {})}); favsChanged();
+  toast(k ? 'Ajouté sur le bouton ' + k : 'Les 10 boutons sont pris : ajouté dans « Autres sons »');
+}
+const curSl = () => DB.setlists.find(s => s.id === DB.curSl) || null;
+function renderSetlist() {
+  const sel = $('#slSel'); sel.innerHTML = '';
+  if (!DB.setlists.length) { const o = document.createElement('option'); o.textContent = '(aucune setlist)'; sel.appendChild(o); }
+  DB.setlists.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o); });
+  if (curSl()) sel.value = DB.curSl;
+  const ul = $('#slItems'); ul.innerHTML = ''; const sl = curSl();
+  if (!sl) { ul.innerHTML = '<li class="muted">Crée une setlist avec « Nouvelle ».</li>'; return; }
+  if (!sl.items.length) ul.innerHTML = '<li class="muted">Setlist vide : ajoute le Multi en cours ou un favori.</li>';
+  sl.items.forEach((it, i) => {
+    const li = document.createElement('li'); if (stage.on && stage.i === i) li.className = 'on';
+    li.innerHTML = `<span class="n">${i + 1}</span><span class="t">${esc(it.title || it.name)} ${it.transpose ? ` <span class="trb">${trTxt(it.transpose)}</span>` : ''} <span class="muted">· ${kindLbl(it)}${noteTxt(it.note) ? ' · ' + esc(noteTxt(it.note)) : ''}</span></span>
+      <button class="small" data-a="up">↑</button><button class="small" data-a="dn">↓</button><button class="small" data-a="ren" title="Titre, transpose et note du morceau">✎</button><button class="small" data-a="del">✕</button>`;
+    li.addEventListener('click', e => {
+      const a = e.target.dataset && e.target.dataset.a, it2 = sl.items;
+      if (a === 'del') { it2.splice(i, 1); }
+      else if (a === 'up' && i > 0) it2.splice(i - 1, 0, it2.splice(i, 1)[0]);
+      else if (a === 'dn' && i < it2.length - 1) it2.splice(i + 1, 0, it2.splice(i, 1)[0]);
+      else if (a === 'ren') { const t = prompt('Titre du morceau', it.title || it.name); if (t === null) return;
+        const tr = prompt('Transpose du morceau en demi-tons (ex. 2, -3, 0)', String(it.transpose || 0)); if (tr === null) return;
+        const pr = kindOf(it) === 'prog', no = prompt(`N° du ${pr ? 'programme' : 'Multi'} pour ce morceau`, String(it.multi)); if (no === null) return;
+        const nid = parseInt(no, 10); if (nid >= 1 && nid <= 16383 && nid !== it.multi) { it.multi = nid; it.name = Artis.names[(pr ? 0x0A : MULTI) + ':' + nid] || ((LIB && !pr && (LIB.list.find(m => m.id === nid) || {}).name) || (pr ? 'Programme ' : 'Multi ') + nid); }
+        const n = prompt('Note (optionnelle, affichée en mode scène)', it.note || '');
+        it.title = t.trim(); it.transpose = Math.max(-48, Math.min(48, parseInt(tr, 10) || 0)); it.note = (n || '').trim(); }
+      else if (!a) { goSong(it); return; }
+      save(); renderSetlist();
+    });
+    ul.appendChild(li);
+  });
+}
+
+/* ====================== Mode scène ====================== */
+const stage = {on: false, i: 0};
+function stageOpen() {
+  const sl = curSl(); if (!sl || !sl.items.length) { toast('Choisis une setlist non vide'); return; }
+  stage.on = true; stage.i = Math.min(stage.i, sl.items.length - 1); $('#stage').classList.add('on');
+  if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+  stageGo(stage.i);
+}
+function stageClose() { stage.on = false; $('#stage').classList.remove('on'); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); renderSetlist(); }
+// Instrument d'un morceau : nom affiché du favori correspondant (s'il existe), sinon nom du son
+const instOf = it => { const f = DB.favs.find(x => x.multi === it.multi && kindOf(x) === kindOf(it)); return (f && (f.label || f.name)) || it.name || kindLbl(it); };
+const songLine = it => (it.title || it.name) + (it.transpose ? ' ' + trTxt(it.transpose) : '') + ' | ' + instOf(it);
+// Décalage ponctuel pendant le morceau (ex. Harlem Shuffle monte d'un demi-ton à l'interlude). Remis à zéro au morceau suivant.
+let stageExtra = 0;
+function stageShift(d) {
+  const sl = curSl(); if (!sl || !out || isProgramMode() || !stage.ok) { toast('Rien à transposer : le son du morceau n\'est pas chargé'); return; }
+  stageExtra += d; S.zones.forEach((z, k) => { if (z) applyTranspose(k, z.tr + d); });
+  if (lastSong) { lastSong.t += d; lastSong.trs = S.zones.map(z => z ? z.tr : null); }
+  else lastSong = {id: S.cur && S.cur.id, t: d, trs: S.zones.map(z => z ? z.tr : null)};
+  const it = sl.items[stage.i], tot = (it.transpose || 0) + stageExtra;
+  const st = $('#stTr'); st.textContent = 'Transpose ' + trTxt(tot) + (stageExtra ? ` (${trTxt(stageExtra)} passage)` : ''); st.className = 'ctr' + (tot ? '' : ' zero');
+}
+async function stageGo(i) {
+  stageExtra = 0; stage.ok = false;
+  const sl = curSl(); if (!sl) return; i = Math.max(0, Math.min(sl.items.length - 1, i)); stage.i = i;
+  const it = sl.items[i], nx = sl.items[i + 1];
+  $('#stTitle').textContent = sl.name + ' · ' + (i + 1) + '/' + sl.items.length;
+  $('#stCur').textContent = it.title || it.name; $('#stNote').textContent = noteTxt(it.note);
+  $('#stInst').textContent = instOf(it);
+  const st = $('#stTr'); st.textContent = 'Transpose ' + trTxt(it.transpose || 0); st.className = 'ctr' + (it.transpose ? '' : ' zero');
+  $('#stNext').textContent = nx ? 'Ensuite : ' + songLine(nx) : 'Fin de la setlist';
+  $('#stItems').innerHTML = sl.items.map((x, k) => `<div class="it${k === i ? ' on' : ''}" data-k="${k}">${k + 1}. ${esc(x.title || x.name)}${x.transpose ? ` <span class="trn">${trTxt(x.transpose)}</span>` : ''} <span class="in">| ${esc(instOf(x))}</span></div>`).join('');
+  $('#stItems').querySelectorAll('.it').forEach(d => d.onclick = () => stageGo(+d.dataset.k));
+  renderSetlist();
+  const ok = await goSong(it); stage.ok = ok;
+  if (!ok) $('#stNote').innerHTML = '<span class="err">⚠ ' + esc(S.loadErr || 'Son non chargé') + '</span>';
+}
+
+/* ====================== Simulateur (mode démo) ====================== */
+function makeFakeArtis() {
+  // Artis simulé : objets Multi en mémoire (5213 octets « PC3… »), tampon d'édition, protocole 0B / 11 / 5A 20-00-06-01-21 / CC 110-119
+  const progs = {15: 'NOLA Piano', 194: 'Rich Les', 191: 'Add A Pad 1', 251: 'PERC Carnival', 40: 'Fingered Bass'};
+  const mk = zs => { const b = new Array(MULTI_SIZE).fill(0); b[0] = 80; b[1] = 67; b[2] = 51;
+    zs.forEach((z, i) => { const o = ZBASE + i * ZLEN, p = z.prog - 1, t = z.tr & 0xFFFF; b[o + 3] = i + 1; b[o + 0x0C] = p >> 7; b[o + 0x0D] = p & 127; b[o + 0x12] = z.lo; b[o + 0x13] = z.hi; b[o + 0x15] = t >> 8; b[o + 0x16] = t & 255; b[o + 0x1B] = z.ev ?? 255; }); return b; };
+  const Z = (lo1, hi1, lo2, hi2) => [{prog: 15, lo: lo1, hi: hi1, tr: 0}, {prog: 194, lo: lo2, hi: hi2, tr: 0}, {prog: 191, lo: 0, hi: 127, tr: 0}, {prog: 251, lo: 0, hi: 127, tr: -113, ev: 0}];
+  const mem = {1: {name: 'Piano, Steel+Pad', user: 0, data: mk(Z(0, 127, 0, 127))}, 12: {name: 'Stage Rhodes+Str', user: 0, data: mk(Z(60, 127, 0, 59))},
+    181: {name: 'Phat Horns', user: 0, data: mk(Z(0, 127, 0, 127))}, 257: {name: 'My Split', user: 1, data: mk(Z(60, 127, 0, 59))}, 254: {name: 'Artis Control', user: 0, data: mk(Z(0, 127, 0, 127))}};
+  ['Concert Grand', 'Classic Rhodes', 'B3 Gospel', 'Brass Section', 'Lush Strings', 'Warm Pad', 'Saw Lead', 'Piano/Strings', 'Rhodes + Pad', 'Nylon Gtr', 'Upright Bass/Ride', 'Choir Aahs', 'Clav Funk', 'Jazz Org/Bass', 'Big Band Horns'].forEach((n, k) => { if (!mem[k + 20]) mem[k + 20] = {name: n, user: 0, data: mk(Z(0, 127, 0, 127))}; });
+  window.demoFrontPanel = id => { load(id); [0, 1, 2, 3].forEach(c => reply([0xC0 + c, c])); };   // simule un changement fait sur la façade
+  let cur = 1, buf, pending = null;
+  window.demoMidiOut = m => reply(m);
+  window.demoFrontEdit = (z, off, v) => { buf[ZBASE + z * ZLEN + off] = v; };   // simule un reglage change sur la facade
+  const load = id => { cur = id; buf = mem[id].data.slice(); if (window.demoEchoVol) [0, 1, 2, 3].forEach(c => reply([0xB0 + c, 7, 100])); };   // hypothèse : l'Artis renvoie les volumes de zone au chargement
+  load(1);
+  const cc = {};
+  const input = {id: 'demo-in', name: 'Kurzweil Artis (simulé)', state: 'connected', onmidimessage: null};
+  const reply = x => setTimeout(() => input.onmidimessage && input.onmidimessage({data: new Uint8Array(x)}), 8);
+  const A = (x, ...rest) => [...H, 0x5A, ...rest.slice(0, 1), ...x.slice(6, 11), ...rest.slice(1), 0xF7];
+  const output = {id: 'demo-out', name: 'Kurzweil Artis (simulé)', state: 'connected', send(d) {
+    const x = [...d];
+    if ((x[0] & 0xF0) === 0xB0) {
+      cc[x[1]] = x[2];
+      if (x[1] === 119 && cc[110] === 5 && cc[111] < 4) {
+        const v = ((cc[118] << 7) | cc[119]) - 0x2000, o = ZBASE + cc[111] * ZLEN + cc[114] + 3;
+        if ([0x18, 0x09, 0x0A].includes(cc[114])) return;   // l'Artis réel refuse ce param en direct
+        if (cc[114] === 0x12) { const t = v & 0xFFFF; buf[o] = t >> 8; buf[o + 1] = t & 255; } else buf[o] = v & 255;
+      }
+      return;
+    }
+    if ((x[0] & 0xF0) === 0xC0) { load(254); return; }   // un Program Change fait passer en mode Programme
+    if (x[0] !== 0xF0 || x[1] !== 7) return;
+    if (x[4] === 0x0B && x[8] === 0) { const nm = mem[cur].name.padEnd(20, ' '); reply([...H, 0x0B, cur >> 7, cur & 127, 0, 0, 0, 0, ...[...nm].map(c => c.charCodeAt(0)), 0, 0xF7]); }
+    else if (x[4] === 0x0B && x[8] === 2) {
+      const dd = pack(buf.slice(ZBASE + x[9] * ZLEN, ZBASE + (x[9] + 1) * ZLEN));
+      if (window.demoShortZone) dd.pop();   // simule l'Artis réel qui envoie un octet MIDI de moins
+      reply([...H, 0x0B, 0, 0, 0, 2, x[9], 0, ...dd, ...xsum(dd), 0xF7]);
+    }
+    else if (x[4] === 0x0B && x[8] === 3 && x[9] === 0) { const dd = pack(buf.slice(0, ZBASE)); reply([...H, 0x0B, 0, 0, 0, 3, 0, 0, ...dd, ...xsum(dd), 0xF7]); }
+    else if (x[4] === 0x11) { const id = x[5] * 128 + x[6]; if (mem[id] && !(window.demoNoReset && id === cur)) load(id); }
+    else if (x[4] === 0x5A) {
+      const t = x[7], id = x[9] + 128 * x[10], sub = x[5];
+      if (sub === 0x20) {
+        if (t === 0x0A && progs[id]) reply(A(x, 0x05, 0, 0, 0, 0, ...[...progs[id]].map(c => c.charCodeAt(0)), 0));
+        else if (t === MULTI && mem[id]) reply(A(x, 0x05, ...n7(mem[id].data.length, 3), mem[id].user, ...[...mem[id].name].map(c => c.charCodeAt(0)), 0));
+        // ID vide : pas de réponse (comportement réel non capturé)
+      } else if (sub === 0x00 && t === MULTI && mem[id]) {
+        const offs = r7(x.slice(11, 14)), n = r7(x.slice(14, 17)), dd = pack(mem[id].data.slice(offs, offs + n));
+        reply(A(x, 0x01, ...n7(offs, 3), ...n7(n, 3), ...dd, ...xsum(dd)));
+      } else if (sub === 0x06 && t === MULTI && (!mem[id] || (mem[id].user && !window.demoNoOverwrite))) {   // écrasement d'un Multi utilisateur : comportement réel inconnu
+        const N = r7(x.slice(11, 14)); pending = {id, name: ascii(x.slice(14, -1)), data: new Array(N).fill(0)};
+        reply(A(x, 0x02, 0, 0, 0, ...n7(N, 3)));
+      } else if (sub === 0x01 && pending && pending.id === id) {
+        const offs = r7(x.slice(11, 14)), n = r7(x.slice(14, 17)), d = x.slice(17, -3), [c1, c2] = xsum(d);
+        if (c1 !== x[x.length - 3] || c2 !== x[x.length - 2]) return;
+        unpack(d).slice(0, n).forEach((v, i) => pending.data[offs + i] = v);
+        reply(A(x, 0x02, ...n7(offs, 3), ...n7(n, 3)));
+      } else if (sub === 0x21 && pending && pending.id === id) {
+        mem[id] = {name: pending.name, user: 1, data: pending.data}; pending = null;
+        reply(A(x, 0x02, 0, 0, 0, 0, 0, 0));
+      }
+    }
+  }};
+  return {inputs: new Map([[input.id, input]]), outputs: new Map([[output.id, output]]), onstatechange: null};
+}
+async function startDemo() {
+  demo = true; access = makeFakeArtis(); fillPorts(); await openPorts();
+  toast('Mode démo : un Artis simulé répond. Multis disponibles : 1, 12, 181, 257 (n° libres à partir de 258).', 5000);
+}
+
+/* ====================== Bibliothèque des Multis ====================== */
+const LIBKEY = 'artisEditor.lib.v1';
+let LIB = null, libFam = 'Tous', libScanning = false;
+try { LIB = JSON.parse(localStorage.getItem(LIBKEY)); } catch (e) {}
+// Familles devinées d'après le nom (mots anglais des noms d'usine Kurzweil). Approximatif, un Multi peut être dans plusieurs familles.
+const FAMS = [
+  ['Pianos', /piano|grand|upright|\bpno\b|\bcp\b|nola|concert|honky/i],
+  ['E-Pianos & clavs', /rhodes|wurl|\bep\b|e\.?pno|epiano|e-piano|tine|suitcase|dyno|stage|\bfm\b|dx|clav|pianet/i],
+  ['Orgues', /organ|\bb-?3\b|leslie|\bles\b|drawbar|gospel|jazz org|\borg\b|vox|farf|church|pipe/i],
+  ['Cuivres & vents', /brass|horn|trump|\btpt\b|bone|sax|sect|flute|wind|reed|clarinet|oboe/i],
+  ['Cordes & orchestre', /string|\bstr\b|strs|violin|viola|cello|orch|ensemble|pizz|harp|symph/i],
+  ['Pads & nappes', /pad|warm|sweep|atmos|ambient|choir|aah|ooh|voice|vox|air/i],
+  ['Synthés & leads', /synth|lead|saw|analog|poly|square|jupiter|mini|\bob\b|prophet|arp|seq|pluck|bell/i],
+  ['Guitares & basses', /guitar|gtr|steel|nylon|bass|acous/i],
+  ['Splits & layers', /\/|\+|&|split|layer|\bw\/|\bover\b|\band\b/i],
+];
+const famsOf = nm => { const f = FAMS.filter(([, re]) => re.test(nm)).map(([n]) => n); return f.length ? f : ['Autres']; };
+async function scanLib() {
+  if (libScanning || !out) return; libScanning = true; $('#btnLib').disabled = true;
+  const list = [];
+  try {
+    if (!(await Mem.info(1, 1500))) throw "l'Artis ne répond pas";
+    let empty = 0;
+    for (let id = 1; id <= 1024; id++) {
+      const i = await Mem.info(id, id <= 256 ? 300 : 200);
+      if (i) { list.push({id, name: i.name, user: i.user}); empty = 0; } else empty++;
+      if (id > 256 && empty >= 24) break;     // après les Multis d'usine : on s'arrête après 24 numéros vides de suite
+      if (id % 8 === 0) $('#btnLib').textContent = `Lecture… n° ${id} (${list.length} trouvés)`;
+    }
+    LIB = {at: new Date().toISOString(), list}; try { localStorage.setItem(LIBKEY, JSON.stringify(LIB)); } catch (e) {}
+    toast(list.length + ' Multis lus');
+  } catch (e) { toast('⚠ ' + e, 5000); }
+  libScanning = false; $('#btnLib').disabled = !out; $('#btnLib').textContent = 'Relire la liste depuis l\'Artis'; renderLib();
+}
+function renderLib() {
+  const box = $('#lib'), chips = $('#libChips');
+  if (!LIB || !LIB.list.length) { chips.innerHTML = ''; box.innerHTML = '<span class="muted">Connecte l\'Artis puis clique « Lire la liste depuis l\'Artis » (environ 30 s à 1 min, une seule fois : la liste est gardée).</span>'; return; }
+  const q = ($('#libQ').value || '').trim().toLowerCase();
+  const all = LIB.list.map(m => ({...m, fams: famsOf(m.name)}));
+  const counts = {Tous: all.length}; all.forEach(m => m.fams.forEach(f => counts[f] = (counts[f] || 0) + 1));
+  const names = ['Tous', ...FAMS.map(([n]) => n), 'Autres'].filter(n => counts[n]);
+  if (!names.includes(libFam)) libFam = 'Tous';
+  chips.innerHTML = names.map(n => `<span class="chip${n === libFam ? ' on' : ''}" data-f="${esc(n)}">${esc(n)}<span class="c">${counts[n]}</span></span>`).join('');
+  chips.querySelectorAll('.chip').forEach(c => c.onclick = () => { libFam = c.dataset.f; renderLib(); });
+  const shown = all.filter(m => (libFam === 'Tous' || m.fams.includes(libFam)) && (!q || m.name.toLowerCase().includes(q) || String(m.id) === q));
+  box.innerHTML = shown.map(m => `<div class="lit${S.cur && !isProgramMode() && S.cur.id === m.id ? ' on' : ''}" data-id="${m.id}" title="${esc(m.fams.join(', '))}"><span class="no">${m.id}</span><span class="nm">${esc(m.name)}</span>${m.user ? '<span class="u">U</span>' : ''}<button class="small" data-fav="1" title="Ajouter aux favoris de l'éditeur">★</button></div>`).join('') || '<span class="muted">Aucun Multi ne correspond.</span>';
+  box.querySelectorAll('.lit').forEach(d => d.onclick = e => {
+    const m = LIB.list.find(x => x.id === +d.dataset.id);
+    if (e.target.dataset.fav) { addFav(m.id, m.name); return; }
+    goMulti(m.id, m.name);
+  });
+}
+
+/* ====================== Panneau de sauvegarde ====================== */
+let saving = false;
+function svLog(t, cls) { const el = $('#saveLog'); el.insertAdjacentHTML('beforeend', `<div class="${cls || ''}">${esc(t)}</div>`); }
+let svSrc = null, lastSaved = null;   // svSrc : Multi en cours à l'ouverture du panneau (+ drapeau utilisateur)
+const svMode = () => $('#svModeOw').checked ? 'ow' : 'new';
+function svModeUI() {
+  const ow = svMode() === 'ow';
+  $('#svIdL').style.display = $('#svFind').style.display = ow ? 'none' : '';
+  $('#svFavL').style.display = ow ? 'none' : '';
+  $('#svGo').textContent = ow ? `Écraser le n° ${svSrc ? svSrc.id : '?'}` : 'Écrire';
+  $('#svNote').innerHTML = ow
+    ? `Remplace le Multi utilisateur n° ${svSrc ? svSrc.id : '?'} par l'état actuel des zones, puis le relit pour vérifier. <b>Expérimental</b> : jamais essayé sur le vrai Artis, fais le premier essai sur un Multi de test (ex. 281). Si l'Artis refuse, rien n'est écrit.`
+    : 'Écrit le Multi en cours avec tes modifs de zones dans un emplacement <b>libre</b> (refusé si le n° est occupé), puis le relit pour vérifier. Le Multi d\'origine n\'est pas touché.';
+}
+async function svToggle() {
+  const P = $('#savePanel');
+  if (P.classList.contains('on')) { P.classList.remove('on'); $('#btnSave').classList.remove('open'); return; }
+  P.classList.add('on'); $('#btnSave').classList.add('open'); $('#saveLog').innerHTML = '';
+  if (S.cur) $('#svName').value = (S.cur.name || '').replace(/[^\x20-\x7E]/g, '').slice(0, 16);
+  if (svPlan) { $('#svName').value = svPlan.name; $('#svId').value = svPlan.id; }
+  // Écraser n'est proposé que pour un Multi utilisateur (n° 257 et plus, drapeau « utilisateur » en mémoire)
+  svSrc = null; $('#svModeOw').disabled = true; $('#svModeOwL').classList.add('dis'); $('#svOwTxt').textContent = 'le Multi en cours (vérification…)';
+  svModeUI();
+  if (S.cur && S.cur.id >= 257) {
+    const i = await Mem.info(S.cur.id, 1000).catch(() => null);
+    if (i && i.user) { svSrc = {id: S.cur.id, name: i.name}; }
+  }
+  if (svSrc && !svPlan) {
+    $('#svModeOw').disabled = false; $('#svModeOwL').classList.remove('dis'); $('#svOwTxt').textContent = `le Multi n° ${svSrc.id} « ${svSrc.name} »`;
+    $('#svModeOw').checked = true;
+  } else if (svSrc) {
+    $('#svModeOw').disabled = false; $('#svModeOwL').classList.remove('dis'); $('#svOwTxt').textContent = `le Multi n° ${svSrc.id} « ${svSrc.name} »`; $('#svModeNew').checked = true;
+  } else {
+    $('#svOwTxt').textContent = S.cur && S.cur.id < 257 ? 'impossible : Multi d\'usine (n° < 257)' : 'impossible : pas un Multi utilisateur';
+    $('#svModeNew').checked = true;
+  }
+  svModeUI();
+  // Transpose du morceau appliqué par la setlist : par défaut on ne l'enregistre pas dans le Multi (sinon il s'ajoute deux fois)
+  const sT = lastSong && S.cur && lastSong.id === S.cur.id && lastSong.t ? lastSong.t : 0;
+  $('#svTrL').style.display = sT ? '' : 'none'; $('#svTrOff').checked = true; $('#svTrOff').dataset.t = sT;
+  $('#svTrTxt').textContent = `Ne pas enregistrer le ${sT > 0 ? '+' : ''}${sT} du morceau. Ce ${sT > 0 ? '+' : ''}${sT} vient de la setlist, pas du son : coché, le Multi est enregistré à sa tonalité normale (sinon la setlist ajouterait ${sT > 0 ? '+' : ''}${sT} une 2e fois). Décoche pour faire un Multi déjà transposé, pour les boutons physiques.`;
+  if (svMode() === 'new' && !$('#svId').value) await svFind();
+}
+function svDone(id, name) {
+  if (svPlan && svPlan.id === id) { svPlan = null; renderPlan(); }
+  lastSaved = {id, at: new Date()};
+  $('#savePanel').classList.remove('on'); $('#btnSave').classList.remove('open');
+  renderSaveStatus(); toast(`✅ Multi ${id} « ${name} » sauvegardé et relu`, 4000);
+}
+function renderSaveStatus() {
+  const L = lastSaved, on = L && S.cur && S.cur.id === L.id && !isProgramMode();
+  $('#saveStatus').textContent = on ? `✓ sauvegardé à ${L.at.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}` : '';
+}
+async function svFind() {
+  if (saving) return; $('#svFind').disabled = true; svLog('Recherche d\'un n° libre à partir de 257…');
+  try { const id = await Mem.findFree(257); if (id) { $('#svId').value = id; svLog('N° ' + id + ' libre.'); } else svLog('Aucun n° libre trouvé entre 257 et 1024.', 'warn'); }
+  catch (e) { svLog('⚠ ' + e, 'err'); }
+  $('#svFind').disabled = false;
+}
+async function svGo() {
+  if (saving) return;
+  const ow = svMode() === 'ow';
+  const id = ow ? (svSrc && svSrc.id) : parseInt($('#svId').value, 10), name = $('#svName').value.trim();
+  if (!(id >= 257 && id <= 16383)) { svLog('N° invalide : utilise un n° utilisateur (257 ou plus).', 'err'); return; }
+  if (!/^[\x20-\x7E]{1,16}$/.test(name)) { svLog('Nom : 1 à 16 caractères sans accent.', 'err'); return; }
+  if (ow && !confirm(`Écraser le Multi n° ${id} « ${svSrc.name} » par les réglages actuels (nom : « ${name} ») ?\n\nL'ancienne version sera perdue.`)) return;
+  saving = true; ['#svGo', '#svFind', '#btnSave'].forEach(s => $(s).disabled = true);
+  $('#saveLog').innerHTML = '';
+  try {
+    if (ow) {
+      svLog(`1/5 Vérification que le n° ${id} est bien un Multi utilisateur…`);
+      const i = await Mem.info(id, 1000);
+      if (!i || !i.user) throw `le n° ${id} n'est pas un Multi utilisateur : rien écrit`;
+    } else {
+      svLog(`1/5 Vérification que le n° ${id} est libre…`);
+      if (!(await Mem.isFree(id))) throw `le n° ${id} est occupé : rien écrit. Clique « Chercher un n° libre », ou choisis « Écraser » si c'est le Multi en cours.`;
+    }
+    svLog('2/5 Lecture du Multi en cours dans la mémoire…');
+    const cur = await Artis.current(); if (!cur) throw "pas de réponse de l'Artis";
+    if (ow && cur.id !== id) throw `l'Artis a changé de Multi (n° ${cur.id} chargé, pas ${id}) : rien écrit. Rouvre le panneau.`;
+    const src = await Mem.read(cur.id);
+    if (src.name !== cur.name) throw `l'objet en cours « ${cur.name} » n'est pas le Multi ${cur.id} « ${src.name} » : passe l'Artis en mode Multi`;
+    if (src.size !== MULTI_SIZE || ascii(src.data.slice(0, 3)) !== 'PC3') throw `Multi en cours inattendu (taille ${src.size}) : rien écrit`;
+    svLog('3/5 Récupération de tes 4 zones modifiées…');
+    const data = src.data.slice(); let changed = 0;
+    for (let z = 0; z < 4; z++) {
+      const x = await ask([...H, 0x0B, 0, 0, 0, 2, z, 0, 0xF7], x => x[0] === 0xF0 && x[4] === 0x0B && x[8] === 2 && x[9] === z, 2000);
+      if (!x) throw `pas de réponse pour la zone ${z + 1} : rien écrit`;
+      // [V 16/11] La réponse réelle peut décoder 1 ou 2 octets de moins que 0x4C0 (fin du bit-stream) :
+      // on ne recopie que les octets reçus, le reste vient du Multi en mémoire. En dessous de ZLEN − 8, on refuse.
+      const ze = unpack(x.slice(11, -3)).slice(0, ZLEN);
+      if (ze.length < ZLEN - 8) throw `zone ${z + 1} incomplète (${ze.length}/${ZLEN} octets) : rien écrit`;
+      ze.forEach((v, i) => { if (data[ZBASE + z * ZLEN + i] !== v) changed++; data[ZBASE + z * ZLEN + i] = v; });
+    }
+    const wants = [0, 1, 2, 3].map(z => (mixOf(z) || {}).want);
+    wants.forEach((w, z) => { if (w === undefined) return; const o = ZBASE + z * ZLEN; data[o + 0x1B] = w; data[o + 0xA0] = w; });
+    const progs = [0, 1, 2, 3].map(z => (mixOf(z) || {}).wantProg);
+    progs.forEach((n, z) => { if (n === undefined) return; const o = ZBASE + z * ZLEN, i = n - 1; data[o + 0x0C] = i >> 7; data[o + 0x0D] = i & 127; });
+    if (progs.some(n => n !== undefined)) svLog('   Programmes écrits : ' + progs.map((n, z) => n === undefined ? null : `zone ${z + 1} = ${n}`).filter(Boolean).join(', '));
+    if (wants.some(w => w !== undefined)) svLog('   Volumes d\'entrée écrits : ' + wants.map((w, z) => w === undefined ? null : `zone ${z + 1} = ${w}`).filter(Boolean).join(', '));
+    const sT = $('#svTrL').style.display !== 'none' && $('#svTrOff').checked ? +$('#svTrOff').dataset.t : 0;
+    if (sT) {
+      for (let z = 0; z < 4; z++) { const o = ZBASE + z * ZLEN, t = (data[o + 0x15] << 8) | data[o + 0x16], tr = (t > 32767 ? t - 65536 : t) - sT, u = tr & 0xFFFF; data[o + 0x15] = u >> 8; data[o + 0x16] = u & 255; }
+      svLog(`   Transpose du morceau (${sT > 0 ? '+' : ''}${sT}) retiré des 4 zones avant écriture.`);
+    }
+    svLog(`   ${changed} octet(s) de zones diffèrent du Multi ${cur.id} en mémoire.` + '');
+    if (ow && !changed && !wants.some(w => w !== undefined) && !progs.some(n => n !== undefined) && !sT && name === src.name) { svLog('Rien à écrire : le Multi en mémoire est déjà identique.', 'okc'); svDone(id, name); return; }
+    svLog(`4/5 ${ow ? 'Écrasement du' : 'Écriture dans le'} n° ${id} « ${name} »…`);
+    if (!ow && !(await Mem.isFree(id))) throw `le n° ${id} vient d'être occupé : rien écrit`;
+    try { await Mem.write(id, name, data, pct => { $('#svGo').textContent = `Écriture ${pct} %`; }); }
+    catch (e) { if (ow && /5A 06/.test(e)) throw "l'Artis refuse d'écraser un Multi existant : rien écrit. Utilise « Nouveau Multi » en attendant."; throw e; }
+    svLog('5/5 Relecture et comparaison…');
+    const back = await Mem.read(id);
+    const bad = back.data.findIndex((v, i) => v !== data[i]);
+    if (back.size !== data.length || bad >= 0) throw `relecture différente (taille ${back.size}, 1er écart à l'octet ${bad}). Ne compte pas sur ce Multi.`;
+    svLog(`✅ Sauvegardé et relu à l'identique : Multi ${id} « ${name} ».`, 'okc');
+    Artis.names[MULTI + ':' + id] = name;
+    if (LIB) { LIB.list = LIB.list.filter(m => m.id !== id).concat([{id, name, user: true}]).sort((a, b) => a.id - b.id); try { localStorage.setItem(LIBKEY, JSON.stringify(LIB)); } catch (e) {} }
+    DB.favs.forEach(f => { if (f.multi === id && kindOf(f) === 'multi') f.name = name; });
+    if (!ow) {
+      // Le volume/mute et les zones masquées vivent dans la page : on les recopie sur le nouveau n°
+      if (DB.mix && DB.mix[cur.id]) DB.mix[id] = JSON.parse(JSON.stringify(DB.mix[cur.id]));
+      if (DB.hidden && DB.hidden[cur.id]) DB.hidden[id] = DB.hidden[cur.id].slice();
+    }
+    for (const k of [cur.id, id]) if (DB.mix && DB.mix[k]) DB.mix[k].forEach(m => { if (m) { delete m.want; delete m.wantProg; } });
+    save(); renderFavs(); fillFavSel();
+    $('#svId').value = '';
+    if (!ow && $('#svFav').checked) { await addFav(id, name); await goMulti(id, name); }
+    else if (ow) await goMulti(id, name);
+    svDone(id, name);
+  } catch (e) { svLog('⚠ ' + e, 'err'); }
+  saving = false; ['#svGo', '#svFind', '#btnSave'].forEach(s => $(s).disabled = false); svModeUI();
+}
+
+/* ====================== Sonde « détecter un réglage » ====================== */
+// Photographie les 4 zones du tampon d'édition (octets bruts) avant/après une modif faite sur le clavier et liste les octets changés.
+let probeA = null, probeMsgs = null;
+// v2 : photographie toutes les réponses à la commande 0B (sélecteurs 0-7 × sous-sélecteurs 0-7 : objet en cours, zones, et le reste)
+// et enregistre les messages MIDI non-SysEx que l'Artis émet entre les deux photos (ex. CC 7 si le volume part en MIDI).
+const probeKeys = []; for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) probeKeys.push([a, b]);
+let probeLive = null;   // [sel, sub] qui ont répondu à la première photo
+async function probeSnap(first) {
+  const R = {};
+  const keys = first ? probeKeys : probeLive;
+  for (const [a, b] of keys) {
+    const x = await ask([...H, 0x0B, 0, 0, 0, a, b, 0, 0xF7], x => x[0] === 0xF0 && x[4] === 0x0B && x[8] === a && x[9] === b, first ? 250 : 1500);
+    if (x) R[a + ':' + b] = x;
+    if (first) $('#prState').textContent = `photo… ${probeKeys.indexOf(keys.find(k => k[0] === a && k[1] === b)) + 1}/64`;
+  }
+  if (first) probeLive = Object.keys(R).map(k => k.split(':').map(Number));
+  return {cur: await Artis.current(), R};
+}
+function probeDiff(A, B) {
+  const L = [];
+  for (const k of Object.keys(A.R)) {
+    const a = A.R[k], b = B.R[k];
+    if (!b) { L.push(`0B ${k} : plus de réponse`); continue; }
+    const [sel, sub] = k.split(':').map(Number);
+    // données décodées à partir de l'octet 11 (comme pour les zones), en-têtes bruts comparés aussi
+    const ha = a.slice(0, 11), hb = b.slice(0, 11);
+    ha.forEach((v, i) => { if (v !== hb[i]) L.push(`0B ${k}  en-tête octet ${i}  ${v} → ${hb[i]}`); });
+    const da = unpack(a.slice(11, -3)), db = unpack(b.slice(11, -3));
+    const n = Math.max(da.length, db.length);
+    let cnt = 0;
+    for (let i = 0; i < n; i++) if (da[i] !== db[i]) {
+      if (++cnt > 40) { L.push(`0B ${k}  … (plus de 40 octets différents)`); break; }
+      const zoneInfo = sel === 2 ? `  (zone ${sub + 1}, param 0x${(i - 3).toString(16)})` : '';
+      L.push(`0B ${k}  octet décodé +0x${i.toString(16).padStart(3, '0')}  ${da[i]} → ${db[i]}${zoneInfo}`);
+    }
+  }
+  return L;
+}
+$('#prA').onclick = async () => {
+  if (!out) { toast('Connecte d\'abord l\'Artis'); return; }
+  $('#prState').textContent = 'photo…'; $('#prB').disabled = true;
+  try {
+    probeA = await probeSnap(true); probeMsgs = [];
+    $('#prState').textContent = `Photo avant OK (${probeA.cur ? probeA.cur.name : '?'}, ${probeLive.length} blocs lus). Change UN réglage sur l'Artis, puis « Photo après ».`;
+    $('#prB').disabled = false;
+  } catch (e) { $('#prState').textContent = '⚠ ' + e; }
+};
+$('#prB').onclick = async () => {
+  $('#prState').textContent = 'photo…';
+  const msgs = probeMsgs || []; probeMsgs = null;
+  try {
+    const B = await probeSnap(false);
+    const lines = [`Multi : ${probeA.cur && probeA.cur.id} « ${probeA.cur && probeA.cur.name} » → ${B.cur && B.cur.id} « ${B.cur && B.cur.name} »`, `Blocs 0B lus : ${probeLive.map(k => k.join(':')).join(' ')}`];
+    const d = probeDiff(probeA, B);
+    lines.push(...(d.length ? d : ['Aucune différence dans les blocs 0B.']));
+    const uniq = [...new Set(msgs.map(hex))];
+    lines.push(uniq.length ? `Messages MIDI émis par l'Artis pendant la modif (${msgs.length}, ${uniq.length} différents) :` : 'Aucun message MIDI émis par l\'Artis pendant la modif.');
+    uniq.slice(0, 30).forEach(m => lines.push('  ' + m));
+    $('#prOut').textContent = lines.join('\n'); $('#prCopy').disabled = false; $('#prState').textContent = d.length + ' différence(s), ' + msgs.length + ' message(s) MIDI.';
+  } catch (e) { $('#prState').textContent = '⚠ ' + e; }
+};
+$('#prCopy').onclick = () => { navigator.clipboard.writeText($('#prOut').textContent).then(() => toast('Copié : colle-le dans notre fil'), () => toast('Copie impossible : sélectionne le texte à la main')); };
+
+/* ====================== Export texte de la setlist ====================== */
+function setlistText(sl) {
+  const L = [sl.name, '='.repeat(sl.name.length), ''];
+  sl.items.forEach((it, k) => { const n = noteTxt(it.note), f = DB.favs.find(x => x.slot && x.multi === it.multi && kindOf(x) === kindOf(it)); L.push(`${k + 1}. ${f ? '[' + (f.slot % 10) + '] ' : '[ ] '}${songLine(it)}${n ? '  —  ' + n : ''}`); });
+  L.push('', '[n] = bouton Favorites de l\'Artis à presser (le transpose indiqué est à faire à la main si tu joues sans la page)');
+  return L.join('\n') + '\n';
+}
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click(); }
+
+/* ====================== Câblage de l'interface ====================== */
+$('#btnConnect').onclick = () => { if (connected) disconnect(); else { demo = false; manualOff = false; connect(); } };
+$('#btnPorts').onclick = () => { const e = $('#ports'); e.style.display = e.style.display === 'none' ? '' : 'none'; };
+$('#btnDemo').onclick = startDemo;
+$('#inSel').onchange = $('#outSel').onchange = () => access && openPorts();
+$('#btnRead').onclick = () => readAll();
+$('#btnLib').onclick = scanLib; $('#libQ').oninput = renderLib;
+$('#btnRevert').onclick = () => S.cur && goMulti(S.cur.id, S.cur.name);
+$('#btnSave').onclick = svToggle; $('#svFind').onclick = svFind; $('#svGo').onclick = svGo; $('#svCancel').onclick = () => { $('#savePanel').classList.remove('on'); $('#btnSave').classList.remove('open'); };
+$('#svModeOw').onchange = $('#svModeNew').onchange = async () => { svModeUI(); if (svMode() === 'new' && !$('#svId').value) await svFind(); };
+$('#btnAddFav').onclick = () => S.cur && addFav(S.cur.id, S.cur.name);
+$('#btnFavProg').onclick = async () => {
+  const v = prompt('Numéro du programme (tel qu\'affiché sur l\'Artis)'); if (!v) return; const id = parseInt(v, 10);
+  if (!(id >= 1 && id <= 16383)) { toast('Numéro invalide'); return; }
+  const nm = out ? await Artis.name(0x0A, id) : null;
+  addFav(id, nm || ('Programme ' + id), 'prog');
+  if (out && !nm) toast('Nom introuvable sur l\'Artis : vérifie que ce programme existe');
+};
+$('#btnFavById').onclick = async () => {
+  const v = prompt('Numéro du Multi (ID affiché sur l\'Artis)'); if (!v) return; const id = parseInt(v, 10);
+  if (!(id >= 1 && id <= 16383)) { toast('Numéro invalide'); return; }
+  const nm = out ? await Artis.name(0x1B, id) : null;
+  addFav(id, nm || ('Multi ' + id));
+  if (out && !nm) toast('Nom introuvable sur l\'Artis : vérifie que ce Multi existe');
+};
+$('#rangeSel').onchange = e => { S.range = e.target.value.split(',').map(Number); renderKbd(); renderZones(); };
+window.addEventListener('resize', () => { renderKbd(); renderZones(); });
+$('#slSel').onchange = e => { DB.curSl = e.target.value; stage.i = 0; save(); renderSetlist(); };
+$('#btnSlNew').onclick = () => { const n = prompt('Nom de la setlist', 'Concert ' + new Date().toLocaleDateString()); if (!n) return; const s = {id: uid(), name: n.trim(), items: []}; DB.setlists.push(s); DB.curSl = s.id; save(); renderSetlist(); };
+$('#btnSlRen').onclick = () => { const s = curSl(); if (!s) return; const n = prompt('Nouveau nom', s.name); if (n) { s.name = n.trim(); save(); renderSetlist(); } };
+$('#btnSlDel').onclick = () => { const s = curSl(); if (!s || !confirm('Supprimer la setlist « ' + s.name + ' » ?')) return; DB.setlists = DB.setlists.filter(x => x !== s); DB.curSl = DB.setlists[0] ? DB.setlists[0].id : null; save(); renderSetlist(); };
+$('#btnSlAddCur').onclick = () => { const s = curSl(); if (!s) { toast('Crée d\'abord une setlist'); return; } if (!S.cur) return; s.items.push({multi: S.cur.id, name: S.cur.name, title: '', note: ''}); save(); renderSetlist(); };
+$('#btnSlAddFav').onclick = () => { const s = curSl(), f = DB.favs[+$('#slAddFav').value]; if (!s) { toast('Crée d\'abord une setlist'); return; } if (!f) return; s.items.push({kind: kindOf(f), multi: f.multi, name: f.label || f.name, title: '', note: '', transpose: 0}); save(); renderSetlist(); };
+$('#btnSlTxt').onclick = () => { const s = curSl(); if (!s) { toast('Choisis une setlist'); return; } download(s.name.replace(/[^\w\- ]+/g, '_') + '.txt', setlistText(s), 'text/plain;charset=utf-8'); };
+const b64 = a => { let t = ''; for (let i = 0; i < a.length; i += 4096) t += String.fromCharCode(...a.slice(i, i + 4096)); return btoa(t); };
+const unb64 = t => [...atob(t)].map(c => c.charCodeAt(0));
+function usedMultis() {
+  const ids = new Set();
+  DB.favs.forEach(f => { if (kindOf(f) === 'multi') ids.add(f.multi); });
+  DB.setlists.forEach(sl => sl.items.forEach(it => { if (kindOf(it) === 'multi') ids.add(it.multi); }));
+  return [...ids].filter(id => id >= 257).sort((a, b) => a - b);
+}
+$('#btnExportFull').onclick = async () => {
+  if (!out) { toast('Connecte d\'abord l\'Artis'); return; }
+  const btn = $('#btnExportFull'); btn.disabled = true; const multis = [], missing = [];
+  try {
+    const ids = usedMultis();
+    for (const [k, id] of ids.entries()) {
+      btn.textContent = `Lecture ${k + 1}/${ids.length} (n° ${id})…`;
+      const i = await Mem.info(id, 1000);
+      if (!i) { missing.push(id); continue; }
+      if (!i.user) continue;
+      const m = await Mem.read(id);
+      multis.push({id, name: m.name, size: m.data.length, data: b64(m.data)});
+    }
+    const j = {format: 'artis-editor', version: 2, at: new Date().toISOString(), favs: DB.favs, setlists: DB.setlists, mix: DB.mix || {}, hidden: DB.hidden || {}, multis};
+    download('artis-concert-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(j, null, 1), 'application/json');
+    toast(`Exporté : ${multis.length} Multi(s) copiés` + (missing.length ? ` · pas encore créés : ${missing.join(', ')}` : ''), 6000);
+  } catch (e) { toast('⚠ Export interrompu : ' + e, 6000); }
+  btn.disabled = !out; btn.textContent = '💾 Exporter avec les Multis';
+};
+let restoreList = null;
+function showRestore(list) {
+  restoreList = list; $('#restoreBox').style.display = list && list.length ? '' : 'none'; $('#restoreLog').textContent = '';
+  if (list && list.length) $('#restoreTitle').textContent = `Ce fichier contient ${list.length} Multi(s) : ` + list.map(m => `${m.id} « ${m.name} »`).join(', ');
+}
+$('#btnRestoreX').onclick = () => showRestore(null);
+$('#btnRestore').onclick = async () => {
+  if (!restoreList || saving) return; if (!out) { toast('Connecte d\'abord l\'Artis'); return; }
+  const L = t => $('#restoreLog').textContent += t + '\n';
+  saving = true; $('#btnRestore').disabled = true; $('#restoreLog').textContent = '';
+  try {
+    if (!(await Mem.info(1, 1500))) throw "l'Artis ne répond pas";
+    const plan = [];
+    for (const m of restoreList) {
+      const data = unb64(m.data), i = await Mem.info(m.id, 1000);
+      if (data.length !== MULTI_SIZE || ascii(data.slice(0, 3)) !== 'PC3') { L(`✗ ${m.id} : données invalides dans le fichier, ignoré`); continue; }
+      if (!i) { plan.push({...m, data, how: 'nouveau'}); continue; }
+      if (!i.user) { L(`✗ ${m.id} : c'est un Multi d'usine sur ce clavier, pas touché`); continue; }
+      const cur = await Mem.read(m.id);
+      if (cur.name === m.name && cur.data.every((v, k) => v === data[k])) { L(`= ${m.id} « ${m.name} » : déjà identique`); continue; }
+      plan.push({...m, data, how: `écrase « ${i.name} »`});
+    }
+    const ow = plan.filter(x => x.how !== 'nouveau');
+    if (!plan.length) L('Rien à écrire.');
+    else if (!ow.length || confirm('Ces Multis vont être ÉCRASÉS dans l\'Artis :\n' + ow.map(x => `n° ${x.id} : ${x.how} → « ${x.name} »`).join('\n') + '\n\nContinuer ?')) {
+      for (const x of plan) {
+        L(`→ ${x.id} « ${x.name} » (${x.how})…`);
+        await Mem.write(x.id, x.name, x.data);
+        const back = await Mem.read(x.id);
+        if (back.data.some((v, k) => v !== x.data[k])) { L(`  ⚠ relecture différente sur ${x.id}`); continue; }
+        Artis.names[MULTI + ':' + x.id] = x.name;
+        if (LIB) LIB.list = LIB.list.filter(q => q.id !== x.id).concat([{id: x.id, name: x.name, user: true}]).sort((a, b) => a.id - b.id);
+        L('  ✓ écrit et relu');
+      }
+      try { LIB && localStorage.setItem(LIBKEY, JSON.stringify(LIB)); } catch (e) {}
+      renderFavs(); renderLib();
+    } else L('Annulé : rien écrit.');
+  } catch (e) { L('⚠ ' + e); }
+  saving = false; $('#btnRestore').disabled = false;
+};
+function memZones(d) {
+  return [0, 1, 2, 3].map(z => { const o = ZBASE + z * ZLEN, t = (d[o + 0x15] << 8) | d[o + 0x16];
+    return {canal: d[o + 3], prog: d[o + 0x0C] * 128 + d[o + 0x0D] + 1, lo: d[o + 0x12], hi: d[o + 0x13], tr: t > 32767 ? t - 65536 : t, ev: d[o + 0x1B]}; });
+}
+$('#btnCmp').onclick = async () => {
+  if (!S.cur) return;
+  if ($('#cmpBox').style.display !== 'none') { $('#cmpBox').style.display = 'none'; return; }
+  const v = prompt(`Comparer le Multi en cours (n° ${S.cur.id}) avec le n° :`, svPlan ? '' : (S.cur.id === 281 ? '287' : '281')); if (!v) return;
+  const other = parseInt(v, 10), box = $('#cmpBox'); box.style.display = ''; box.innerHTML = '<span class="muted">Lecture des deux Multis dans la mémoire du clavier…</span>';
+  try {
+    const A = await Mem.read(S.cur.id), B = await Mem.read(other);
+    const za = memZones(A.data), zb = memZones(B.data), zbuf = S.zones;
+    const diff = A.data.reduce((n, x, i) => n + (x !== B.data[i] ? 1 : 0), 0);
+    const zdiff = [0, 1, 2, 3].map(z => { let n = 0; for (let i = 0; i < ZLEN; i++) if (A.data[ZBASE + z * ZLEN + i] !== B.data[ZBASE + z * ZLEN + i]) n++; return n; });
+    const hx = v => v.toString(16).padStart(2, '0');
+    const zbytes = z => { const o = []; for (let i = 0; i < ZLEN; i++) { const x = A.data[ZBASE + z * ZLEN + i], y = B.data[ZBASE + z * ZLEN + i]; if (x !== y && o.length < 8) o.push('+0x' + hx(i) + ' (param 0x' + hx(i - 3) + ') : ' + x + ' / ' + y); } return o.join('<br>'); };
+    const hdr = A.data.slice(0, ZBASE).reduce((n, x, i) => n + (x !== B.data[i] ? 1 : 0), 0);
+    const cell = async z => z ? `${z.prog} ${esc(await Artis.name(0x0A, z.prog) || '')}<br><span class="muted">${noteName(z.lo)}–${noteName(z.hi)} · tr ${z.tr > 0 ? '+' : ''}${z.tr} · vol ${z.ev === 255 || z.ev === undefined ? 'None' : z.ev} · can. ${z.canal}</span>` : '—';
+    let rows = '';
+    for (let z = 0; z < 4; z++) rows += `<tr><td>Zone ${z + 1}</td><td>${await cell(zbuf[z])}</td><td>${await cell(za[z])}</td><td>${await cell(zb[z])}</td><td>${zdiff[z] ? zdiff[z] + ' octet(s) :<br><span class="muted">' + zbytes(z) + '</span>' : '<span class="okc">identique</span>'}</td></tr>`;
+    box.innerHTML = `<div class="row"><b>Comparaison</b><span class="grow"></span><button class="small" id="cmpX2">✕ Fermer</button></div><table class="tbl"><tr><th></th><th>Tampon d'édition (ce que tu entends)</th><th>En mémoire : n° ${S.cur.id} « ${esc(A.name)} »</th><th>En mémoire : n° ${other} « ${esc(B.name)} »</th><th>Écart mémoire</th></tr>${rows}
+      <tr><td colspan="5" class="note">Total : ${diff} octet(s) différent(s) entre les deux Multis, dont ${hdr} dans la partie commune (effets, réglages généraux du Multi). ${diff === 0 ? '<b class="warn">Les deux Multis sont identiques dans le clavier.</b>' : ''} <button class="small" id="cmpX">fermer</button></td></tr></table>`;
+    $('#cmpX').onclick = $('#cmpX2').onclick = () => { box.style.display = 'none'; };
+  } catch (e) { box.innerHTML = '<span class="err">⚠ ' + esc(String(e)) + '</span>'; }
+};
+$('#btnMixReset').onclick = () => { if (!S.cur || !DB.mix) return; delete DB.mix[S.cur.id]; save(); renderTable(); toast('La page n\'envoie plus de volume/mute pour ce Multi. Recharge-le pour l\'entendre tel quel.', 5000); };
+$('#btnExport').onclick = () => {
+  const b = new Blob([JSON.stringify({format: 'artis-editor', version: 1, favs: DB.favs, setlists: DB.setlists}, null, 1)], {type: 'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'artis-favoris-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
+};
+// Import par FUSION : les setlists du fichier sont ajoutées (une setlist de même identifiant est remplacée),
+// les favoris absents sont ajoutés. Rien d'autre n'est effacé.
+function mergeData(j) {
+  migrate(j); let ns = 0, nf = 0;
+  for (const sl of j.setlists) { const k = DB.setlists.findIndex(x => x.id === sl.id); if (k >= 0) DB.setlists[k] = sl; else DB.setlists.push(sl); ns++; }
+  for (const f of j.favs) if (!DB.favs.some(x => x.multi === f.multi && kindOf(x) === kindOf(f))) { if (f.slot && slotFav(f.slot)) delete f.slot; DB.favs.push(f); nf++; }
+  if (j.setlists[0]) DB.curSl = j.setlists[0].id;
+  save(); renderFavs(); fillFavSel(); renderSetlist();
+  return [ns, nf];
+}
+async function importFile(e) {
+  const f = e.target.files[0]; if (!f) return;
+  try { const j = JSON.parse(await f.text()); if (!Array.isArray(j.favs) || !Array.isArray(j.setlists)) throw 0;
+    const [ns, nf] = mergeData(j); toast(`Import terminé : ${ns} setlist(s), ${nf} favori(s) ajoutés`);
+    for (const k of ['mix', 'hidden']) if (j[k]) { DB[k] = DB[k] || {}; for (const id in j[k]) if (!(id in DB[k])) DB[k][id] = j[k][id]; }
+    save(); showRestore(Array.isArray(j.multis) ? j.multis : null);
+    if (Array.isArray(j.multis) && j.multis.length) $('#restoreBox').scrollIntoView({behavior: 'smooth', block: 'center'});
+  } catch (err) { toast('Fichier non reconnu'); }
+  e.target.value = '';
+}
+$('#fileImport').onchange = importFile; $('#fileImport2').onchange = importFile;
+$('#btnStage').onclick = stageOpen; $('#stExit').onclick = stageClose;
+$('#stPrev').onclick = () => stageGo(stage.i - 1); $('#stUp').onclick = () => stageShift(1); $('#stDn').onclick = () => stageShift(-1); $('#stNextB').onclick = () => stageGo(stage.i + 1);
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,select,textarea')) return;
+  if (stage.on) {
+    if (['ArrowRight', ' ', 'PageDown', 'ArrowDown'].includes(e.key)) { e.preventDefault(); stageGo(stage.i + 1); }
+    else if (['ArrowLeft', 'PageUp', 'ArrowUp'].includes(e.key)) { e.preventDefault(); stageGo(stage.i - 1); }
+    else if (e.key === '+' || e.key === '=') stageShift(1);
+    else if (e.key === '-') stageShift(-1);
+    else if (e.key === 'Escape') stageClose();
+    return;
+  }
+  if (/^[0-9]$/.test(e.key)) { const f = slotFav(e.key === '0' ? 10 : +e.key); if (f) goFav(f); }
+});
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && stage.on) stageClose(); });
+
+// Demande au navigateur de ne pas effacer le stockage local de lui-même (place disque, nettoyage auto)
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+// Setlists intégrées à la page : ajoutées une seule fois au stockage local (ensuite modifiables, et non réimposées si supprimées)
+const SEEDS = [];
+load();
+DB.seeded = DB.seeded || [];
+for (const sd of SEEDS) { const k = sd.setlists.map(x => x.id).join(','); if (!DB.seeded.includes(k)) { mergeData(JSON.parse(JSON.stringify(sd))); DB.seeded.push(k); save(); } }
+// v1.2 : les 10 premiers favoris deviennent les boutons 1 à 10 (une seule fois)
+if (!DB.slotsInit) { DB.favs.filter(f => !f.slot).slice(0, 10).forEach(f => { const k = freeSlot(); if (k) f.slot = k; }); DB.slotsInit = true; save(); }
+// v1.3 (16/11, demande de l’utilisateur) : boutons rangés dans l'ordre d'apparition dans la setlist « l’utilisateur »,
+// avec pour chaque Multi à créer son point de départ (src = Multi à copier, ou famille / recherche dans la bibliothèque)
+const PLAN = [];
+if (!DB.planV2) {
+  DB.favs = DB.favs.filter(f => !(f.multi === 283 && kindOf(f) === 'multi'));
+  DB.favs.forEach(f => delete f.slot);
+  for (const P of PLAN) {
+    let f = DB.favs.find(x => x.multi === P.multi && kindOf(x) === 'multi');
+    if (!f) { f = {id: uid(), kind: 'multi', multi: P.multi, name: 'Multi ' + P.multi}; DB.favs.push(f); }
+    Object.assign(f, P);
+  }
+  const sl = null;
+  if (sl) for (const it of sl.items) {
+    const t = (it.title || '').toLowerCase(), to = t.startsWith('spooky') ? 287 : t.startsWith('ooh poo') ? 289 : t.startsWith('hey jude') ? 288 : t.startsWith('proud mary') ? 181 : 0;
+    if (to && kindOf(it) === 'multi') { it.multi = to; it.name = PLAN.find(P => P.multi === to).label; }
+  }
+  DB.planV2 = true; DB.slotsInit = true; save();
+}
+if (!DB.planV3) {   //
+  const sl = null;
+  if (sl) for (const it of sl.items) if ((it.title || '').toLowerCase().startsWith('hey jude')) { it.transpose = 0; it.note = (it.note || '').replace(/Transpose\s*[+-]?\d+\s*\|\s*[^|]*/i, 'Transpose 0 | F joué en F '); }
+  DB.planV3 = true; save();
+}
+// Préférences mémorisées
+DB.prefs = DB.prefs || {};
+if (typeof DB.prefs.verify === 'boolean') $('#chkVerify').checked = DB.prefs.verify;
+$('#chkVerify').onchange = () => { DB.prefs.verify = $('#chkVerify').checked; save(); };
+$('#libBox').open = !!DB.prefs.libOpen;
+$('#libBox').ontoggle = () => { DB.prefs.libOpen = $('#libBox').open; save(); };
+setupPlay();
+renderKbd(); renderZones(); renderTable(); renderFavs(); fillFavSel(); renderSetlist(); renderLib();
+if (new URLSearchParams(location.search).has('demo')) startDemo();
+else if (navigator.requestMIDIAccess) {
+  // Connexion automatique au chargement si l'accès MIDI n'a pas été refusé
+  (async () => {
+    let st = 'prompt';
+    try { st = (await navigator.permissions.query({name: 'midi', sysex: true})).state; } catch (e) {}
+    if (st !== 'denied') connect(true);
+  })();
+}
+</script>
+</body>
+</html>
