@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.13</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.14</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -1498,7 +1498,24 @@ function mergeData(j) {
   // Sans n° de bouton dans le fichier : ordre d'apparition dans la setlist importée
   const order = []; (j.setlists || []).forEach(sl => (sl.items || []).forEach(it => { const k = kindOf(it) + ':' + it.multi; if (!order.includes(k)) order.push(k); }));
   const rank = f => { const r = order.indexOf(kindOf(f) + ':' + f.multi); return r < 0 ? 1e6 : r; };
-  if (!j.favs.some(f => f.slot)) j.favs = j.favs.slice().sort((a, b) => rank(a) - rank(b));
+  // Fichier avec n° de boutons (1.10+) : sa disposition fait foi. Un favori sans n° y reste dans « Autres sons » ;
+  // un bouton pris par un favori absent du fichier est libéré.
+  if (j.favs.some(f => f.slot)) {
+    const same = (x, f) => x.multi === f.multi && kindOf(x) === kindOf(f);
+    for (const f of j.favs) { const ex = DB.favs.find(x => same(x, f)); if (ex) delete ex.slot; }
+    for (const f of j.favs) {
+      const k = f.slot >= 1 && f.slot <= 10 ? f.slot : null;
+      if (k) { const o = slotFav(k); if (o) delete o.slot; }
+      const ex = DB.favs.find(x => same(x, f));
+      if (ex) { if (k) ex.slot = k; continue; }
+      if (k) f.slot = k; else delete f.slot;
+      DB.favs.push(f); nf++;
+    }
+    if (j.setlists[0]) DB.curSl = j.setlists[0].id;
+    save(); renderFavs(); fillFavSel(); renderSetlist();
+    return [ns, nf];
+  }
+  j.favs = j.favs.slice().sort((a, b) => rank(a) - rank(b));
   for (const f of j.favs) {
     const ex = DB.favs.find(x => x.multi === f.multi && kindOf(x) === kindOf(f));
     if (ex) { if (!ex.slot) { ex.slot = f.slot; place(ex); } continue; }
