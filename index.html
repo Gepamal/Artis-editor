@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.19</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.20</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -207,7 +207,7 @@ details summary{cursor:pointer;color:var(--muted)}
 <section>
  <details id="asmBox"><summary style="cursor:pointer"><h2 style="display:inline-flex;margin:0">🧩 Assembler un Multi</h2> <span class="note">(prendre des zones toutes faites dans d'autres Multis)</span></summary>
   <p class="note">La page ne sait pas changer le programme d'une zone proprement (voir 💾). Ici, on recopie des zones <b>entières</b> déjà réglées et sauvées sur l'Artis (programme, réglages, sliders, statut Mute compris). Ex. : zone 1 = zone 1 du 281 (ton piano), zone 2 = zone 1 du 282 (B3). Les zones « garder » restent celles du Multi de destination (ou du 1er Multi source s'il n'existe pas). Ensuite, règle les splits dans la page et 💾.</p>
-  <div class="row">N° destination <input type="number" id="asmId" min="257" max="1024" style="width:80px"> Nom <input type="text" id="asmName" maxlength="16" style="width:180px"></div>
+  <div class="row">N° destination <input type="number" id="asmId" min="257" max="1024" style="width:80px"> Nom <input type="text" id="asmName" maxlength="16" style="width:180px"> <label><input type="checkbox" id="asmKeepRange" checked> garder les splits (notes basse/haute) de la destination</label></div>
   <table class="tbl" id="asmTbl"></table>
   <div class="row"><button id="asmGo" disabled>Assembler et écrire dans l'Artis</button></div>
   <pre id="asmLog" class="note" style="white-space:pre-wrap"></pre>
@@ -703,7 +703,7 @@ async function applyProgram(z, n) {
   Artis.setParam(z, 0x0A, i & 127); await sleep(400);
   const got = await Artis.zone(z);
   if (got && got.prog === n) { cur.prog = n; cur.progName = m.wantName; delete m.wantProg; S.check[z] = 'ok'; save(); renderTable(); return; }
-  m.wantProg = n; save(); S.check[z] = 'prog'; renderTable();
+  S.check[z] = 'bad:programme ' + (got ? got.prog : '?'); renderTable();
   toast(`L'Artis n'a pas pris le programme ${n} en direct (il indique ${got ? got.prog : '?'}). Choisis-le en façade et sauvegarde avec Save sur l'Artis.`, 7000);
 }
 function applyTranspose(z, v) {
@@ -1280,7 +1280,7 @@ async function svGo() {
     // une copie du n° à +0x4B9/+0x4BA (bits 0-8, +0x200 pour certains programmes) et des dizaines d'octets tirés du programme.
     // Le tampon 0B ne les contient pas : la page ne sait pas faire un changement de programme correct, elle refuse.
     const progs = [0, 1, 2, 3].map(z => (mixOf(z) || {}).wantProg);
-    const pz = [0, 1, 2, 3].filter(z => { const o = ZBASE + z * ZLEN, p = data[o + 0x0C] * 128 + data[o + 0x0D] + 1, c = (data[o + 0x4B9] | (data[o + 0x4BA] << 8)) & 0x1FF; return progs[z] !== undefined || p !== c; });
+    const pz = [0, 1, 2, 3].filter(z => { const o = ZBASE + z * ZLEN, p = data[o + 0x0C] * 128 + data[o + 0x0D] + 1, c = (data[o + 0x4B9] | (data[o + 0x4BA] << 8)) & 0x1FF; return p !== c; });
     if (pz.length) throw `programme changé en ${pz.map(z => 'zone ' + (z + 1)).join(', ')} : la page ne sait pas encore l'enregistrer correctement (le Multi afficherait le nouveau son mais jouerait l'ancien). Choisis le programme en façade et sauvegarde avec la touche Save de l'Artis. Rien écrit.`;
     if (wants.some(w => w !== undefined)) svLog('   Volumes d\'entrée écrits : ' + wants.map((w, z) => w === undefined ? null : `zone ${z + 1} = ${w}`).filter(Boolean).join(', '));
     const sT = $('#svTrL').style.display !== 'none' && $('#svTrOff').checked ? +$('#svTrOff').dataset.t : 0;
@@ -1474,6 +1474,7 @@ $('#asmGo').onclick = async () => {
       if (!progCoherent(s.data, r.sz)) throw `zone ${r.sz + 1} du Multi ${r.src} incohérente (affiche un programme, en joue un autre) : corrige-la d'abord en façade + Save. Rien écrit.`;
       for (let i = 0; i < ZLEN; i++) data[ZBASE + z * ZLEN + i] = s.data[ZBASE + r.sz * ZLEN + i];
       data[ZBASE + z * ZLEN + 3] = base.data[ZBASE + z * ZLEN + 3];   // la zone garde son canal MIDI
+      if (dst && $('#asmKeepRange').checked) [0x12, 0x13].forEach(k => data[ZBASE + z * ZLEN + k] = base.data[ZBASE + z * ZLEN + k]);
       const o = ZBASE + r.sz * ZLEN, p = s.data[o + 0x0C] * 128 + s.data[o + 0x0D] + 1;
       L(`  zone ${z + 1} ← zone ${r.sz + 1} du Multi ${r.src} « ${s.name} » (programme ${p} ${await Artis.name(0x0A, p) || ''})`);
     }
@@ -1684,6 +1685,9 @@ try { navigator.storage && navigator.storage.persist && navigator.storage.persis
 // Setlists intégrées à la page : ajoutées une seule fois au stockage local (ensuite modifiables, et non réimposées si supprimées)
 const SEEDS = [];
 load();
+// 1.20 : programme et Aux Send « à écrire à la sauvegarde » abandonnés (la page ne sait pas les écrire correctement) : on purge les restes
+if (DB.mix) for (const k in DB.mix) (DB.mix[k] || []).forEach(m => { if (m) { delete m.wantProg; delete m.wantName; delete m.wantAux; } });
+save();
 DB.seeded = DB.seeded || [];
 for (const sd of SEEDS) { const k = sd.setlists.map(x => x.id).join(','); if (!DB.seeded.includes(k)) { mergeData(JSON.parse(JSON.stringify(sd))); DB.seeded.push(k); save(); } }
 // v1.2 : les 10 premiers favoris deviennent les boutons 1 à 10 (une seule fois)
