@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.12</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.13</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -193,7 +193,7 @@ details summary{cursor:pointer;color:var(--muted)}
   </div>
   <p class="note">Clique une touche pour l'entendre (glisse pour enchaîner, « Accord » pour en tenir plusieurs ; les zones masquées ou mutées ne jouent pas). Tire les poignées pour régler les notes basse et haute, ou le milieu de la barre pour déplacer toute la plage. Les flèches ◀ ▶ au bout d'une barre signalent que la zone déborde du clavier dessiné (jusqu'à C-1 ou G9, la plage MIDI complète) ; tirer une poignée au-delà du bord donne ces valeurs. Notation Kurzweil : C4 = 60.</p>
   <table>
-    <thead><tr><th>Zone</th><th>Canal</th><th>Programme <span class="muted" title="Changer le programme d'une zone est expérimental : la colonne Vérif. dira si l'Artis l'a pris">(exp.)</span></th><th>Note basse</th><th>Note haute</th><th>Transpose</th><th>Volume <span class="muted" title="Envoyé en CC 7 sur le canal de la zone, comme le slider du clavier. Mémorisé par la page pour chaque Multi et renvoyé à chaque chargement.">(?)</span></th><th>Reverb <span class="muted" title="Aux Send Level de la zone (menu de zone de l'Artis) : Program = niveau prévu par le programme, sinon 0-127. Pas d'écoute en direct : écrit dans le Multi à la sauvegarde 💾, tu l'entends en rechargeant le Multi.">(💾)</span></th><th>Vérif.</th></tr></thead>
+    <thead><tr><th>Zone</th><th>Canal</th><th>Programme <span class="muted" title="Changer le programme d'une zone est expérimental : la colonne Vérif. dira si l'Artis l'a pris">(exp.)</span></th><th>Note basse</th><th>Note haute</th><th>Transpose</th><th>Volume <span class="muted" title="Envoyé en CC 7 sur le canal de la zone, comme le slider du clavier. Mémorisé par la page pour chaque Multi et renvoyé à chaque chargement.">(?)</span></th><th>Reverb <span class="muted" title="Aux Send Level de la zone (menu de zone de l'Artis) : Prog = niveau prévu par le programme, sinon 0-127. Envoyé en CC 28 pour l'entendre tout de suite (comme le slider REVERB), écrit dans le Multi à la sauvegarde 💾.">(?)</span></th><th>Vérif.</th></tr></thead>
     <tbody id="ztable"></tbody>
   </table>
   <details id="probe" style="margin-top:10px"><summary>🔍 Détecter un réglage du clavier (pour m'aider à décoder volume, mute, etc.)</summary>
@@ -435,7 +435,13 @@ const P_EV = 0x18, EV_NONE = 255;
 const evOf = z => { const zz = S.zones[z]; if (!zz) return null; const w = (mixOf(z) || {}).want; if (w !== undefined) return w; return zz.ev !== undefined && zz.ev !== EV_NONE ? zz.ev : null; };
 // Reverb du Multi = Aux Send Level par zone : null = « Program » (niveau du programme), 0-127 sinon. Écrit à la sauvegarde.
 const auxOf = z => { const m = mixOf(z) || {}; return 'wantAux' in m ? m.wantAux : (S.zones[z] || {}).aux; };
-function setAux(z, v) { mixOf(z).wantAux = v; save(); renderTable(); }
+// Écoute directe : au chargement d'un Multi, l'Artis envoie CC 28 (slider REVERB) sur le canal de chaque zone.
+// La page envoie la même chose pour qu'on entende la reverb tout de suite ; la valeur réelle est écrite à la sauvegarde.
+// Correspondance Aux Send ↔ CC 28 non vérifiée (zone 2 : Aux 11 ↔ octet de zone 62 ?).
+function setAux(z, v) {
+  const zz = S.zones[z]; if (zz && v !== null) send([0xB0 + ((zz.canal - 1) & 15), 28, v]);
+  mixOf(z).wantAux = v; save(); renderTable();
+}
 const progOf = z => { const w = (mixOf(z) || {}).wantProg; return w !== undefined ? w : (S.zones[z] || {}).prog; };
 const isMuted = z => evOf(z) === 0 || (evOf(z) === null && !!(mixOf(z) || {}).mute);
 // Ancien système (avant 1.7) : volume/mute gardés par la page, renvoyés en CC 7. Ne sert plus que pour les zones en « None ».
@@ -752,6 +758,7 @@ function renderTable() {
     tr.querySelector('button[data-m]').onclick = () => setMute(i, !isMuted(i));
     const axp = tr.querySelector('button[data-ax]'), axv = tr.querySelector('input[data-ax]');
     if (axp) axp.onclick = () => setAux(i, null);
+    if (axv) axv.addEventListener('input', () => { const v = parseInt(axv.value, 10); const zz = S.zones[i]; if (zz && v >= 0 && v <= 127) send([0xB0 + ((zz.canal - 1) & 15), 28, v]); });
     if (axv) axv.addEventListener('change', () => { const v = parseInt(axv.value, 10); if (axv.value.trim() === '') return setAux(i, null); if (!(v >= 0 && v <= 127)) { toast('Reverb : 0 à 127, ou Prog'); renderTable(); return; } setAux(i, v); });
     tr.querySelector('input[data-k=prog]').addEventListener('change', e => applyProgram(i, parseInt(e.target.value, 10)));
     tr.querySelectorAll('button[data-t]').forEach(b => b.addEventListener('click', () => {
