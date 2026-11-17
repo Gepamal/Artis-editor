@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.10.2</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.11</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -985,7 +985,7 @@ async function stageGo(i) {
 function makeFakeArtis() {
   // Artis simulé : objets Multi en mémoire (5213 octets « PC3… »), tampon d'édition, protocole 0B / 11 / 5A 20-00-06-01-21 / CC 110-119
   const progs = {15: 'NOLA Piano', 194: 'Rich Les', 191: 'Add A Pad 1', 251: 'PERC Carnival', 40: 'Fingered Bass'};
-  const mk = zs => { const b = new Array(MULTI_SIZE).fill(0); b[0] = 80; b[1] = 67; b[2] = 51;
+  const mk = zs => { const b = new Array(MULTI_SIZE).fill(0); b[0] = 80; b[1] = 67; b[2] = 51; for (let i = 3; i < ZBASE; i++) b[i] = (i * 37 + 11) & 127;
     zs.forEach((z, i) => { const o = ZBASE + i * ZLEN, p = z.prog - 1, t = z.tr & 0xFFFF; b[o + 3] = i + 1; b[o + 0x0C] = p >> 7; b[o + 0x0D] = p & 127; b[o + 0x12] = z.lo; b[o + 0x13] = z.hi; b[o + 0x15] = t >> 8; b[o + 0x16] = t & 255; b[o + 0x1B] = z.ev ?? 255; }); return b; };
   const Z = (lo1, hi1, lo2, hi2) => [{prog: 15, lo: lo1, hi: hi1, tr: 0}, {prog: 194, lo: lo2, hi: hi2, tr: 0}, {prog: 191, lo: 0, hi: 127, tr: 0}, {prog: 251, lo: 0, hi: 127, tr: -113, ev: 0}];
   const mem = {1: {name: 'Piano, Steel+Pad', user: 0, data: mk(Z(0, 127, 0, 127))}, 12: {name: 'Stage Rhodes+Str', user: 0, data: mk(Z(60, 127, 0, 59))},
@@ -994,6 +994,7 @@ function makeFakeArtis() {
   window.demoFrontPanel = id => { load(id); [0, 1, 2, 3].forEach(c => reply([0xC0 + c, c])); };   // simule un changement fait sur la façade
   let cur = 1, buf, pending = null;
   window.demoMidiOut = m => reply(m);
+  window.demoCommonEdit = (off, v) => { buf[off] = v; };
   window.demoFrontEdit = (z, off, v) => { buf[ZBASE + z * ZLEN + off] = v; };   // simule un reglage change sur la facade
   const load = id => { cur = id; buf = mem[id].data.slice(); if (window.demoEchoVol) [0, 1, 2, 3].forEach(c => reply([0xB0 + c, 7, 100])); };   // hypothèse : l'Artis renvoie les volumes de zone au chargement
   load(1);
@@ -1020,7 +1021,7 @@ function makeFakeArtis() {
       if (window.demoShortZone) dd.pop();   // simule l'Artis réel qui envoie un octet MIDI de moins
       reply([...H, 0x0B, 0, 0, 0, 2, x[9], 0, ...dd, ...xsum(dd), 0xF7]);
     }
-    else if (x[4] === 0x0B && x[8] === 3 && x[9] === 0) { const dd = pack(buf.slice(0, ZBASE)); reply([...H, 0x0B, 0, 0, 0, 3, 0, 0, ...dd, ...xsum(dd), 0xF7]); }
+    else if (x[4] === 0x0B && ((x[8] === 3 && x[9] === 0) || x[8] === 1)) { const dd = pack(buf.slice(0, ZBASE)); reply([...H, 0x0B, 0, 0, 0, x[8], x[9], 0, ...dd, ...xsum(dd), 0xF7]); }
     else if (x[4] === 0x11) { const id = x[5] * 128 + x[6]; if (mem[id] && !(window.demoNoReset && id === cur)) load(id); }
     else if (x[4] === 0x5A) {
       const t = x[7], id = x[9] + 128 * x[10], sub = x[5];
@@ -1199,6 +1200,22 @@ async function svGo() {
       if (ze.length < ZLEN - 8) throw `zone ${z + 1} incomplète (${ze.length}/${ZLEN} octets) : rien écrit`;
       ze.forEach((v, i) => { if (data[ZBASE + z * ZLEN + i] !== v) changed++; data[ZBASE + z * ZLEN + i] = v; });
     }
+    // [V 17/11] Partie commune du tampon (0B sel 1) : réglages généraux du Multi faits sur la façade (type de reverb à +0xA3,
+    // Aux Send Level des zones à +0x22…). On la recale sur l'en-tête de l'objet (meilleur alignement) et on recopie les écarts.
+    const xc = await ask([...H, 0x0B, 0, 0, 0, 1, 0, 0, 0xF7], x => x[0] === 0xF0 && x[4] === 0x0B && x[8] === 1 && x[9] === 0, 2000);
+    if (xc) {
+      const cm = unpack(xc.slice(11, -3)); let best = null;
+      for (let sh = -32; sh <= 64; sh++) {
+        let n = 0, m = 0;
+        for (let i = 0; i < cm.length; i++) { const j = sh + i; if (j < 3 || j >= ZBASE) continue; n++; if (cm[i] === data[j]) m++; }
+        if (n >= 64 && (!best || m / n > best.r)) best = {sh, r: m / n};
+      }
+      if (best && best.r >= 0.85) {
+        let c = 0;
+        for (let i = 0; i < cm.length; i++) { const j = best.sh + i; if (j < 3 || j >= ZBASE) continue; if (data[j] !== cm[i]) { data[j] = cm[i]; c++; } }
+        svLog(`   Partie commune (effets, Aux Send…) : ${c} octet(s) repris du clavier.`); changed += c;
+      } else svLog('   ⚠ Partie commune non reconnue : les réglages généraux faits sur la façade (effets) ne sont pas repris.', 'warn');
+    }
     const wants = [0, 1, 2, 3].map(z => (mixOf(z) || {}).want);
     wants.forEach((w, z) => { if (w === undefined) return; const o = ZBASE + z * ZLEN; data[o + 0x1B] = w; data[o + 0xA0] = w; });
     const progs = [0, 1, 2, 3].map(z => (mixOf(z) || {}).wantProg);
@@ -1210,7 +1227,7 @@ async function svGo() {
       for (let z = 0; z < 4; z++) { const o = ZBASE + z * ZLEN, t = (data[o + 0x15] << 8) | data[o + 0x16], tr = (t > 32767 ? t - 65536 : t) - sT, u = tr & 0xFFFF; data[o + 0x15] = u >> 8; data[o + 0x16] = u & 255; }
       svLog(`   Transpose du morceau (${sT > 0 ? '+' : ''}${sT}) retiré des 4 zones avant écriture.`);
     }
-    svLog(`   ${changed} octet(s) de zones diffèrent du Multi ${cur.id} en mémoire.` + '');
+    svLog(`   ${changed} octet(s) diffèrent du Multi ${cur.id} en mémoire.` + '');
     if (ow && !changed && !wants.some(w => w !== undefined) && !progs.some(n => n !== undefined) && !sT && name === src.name) { svLog('Rien à écrire : le Multi en mémoire est déjà identique.', 'okc'); svDone(id, name); return; }
     svLog(`4/5 ${ow ? 'Écrasement du' : 'Écriture dans le'} n° ${id} « ${name} »…`);
     if (!ow && !(await Mem.isFree(id))) throw `le n° ${id} vient d'être occupé : rien écrit`;
