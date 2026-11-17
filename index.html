@@ -1001,11 +1001,15 @@ function renderSetlist() {
 const stage = {on: false, i: 0};
 function stageOpen() {
   const sl = curSl(); if (!sl || !sl.items.length) { toast('Choisis une setlist non vide'); return; }
-  stage.on = true; stage.i = Math.min(stage.i, sl.items.length - 1); $('#stage').classList.add('on');
+  stage.on = true; stage.i = Math.min(stage.i, sl.items.length - 1); $('#stage').classList.add('on'); wakeOn();
   if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
   stageGo(stage.i);
 }
-function stageClose() { stage.on = false; $('#stage').classList.remove('on'); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); renderSetlist(); }
+// Mode scène : l'écran ne doit pas se mettre en veille (Wake Lock, Chrome Android / PC). Repris au retour sur la page.
+let wakeLock = null;
+async function wakeOn() { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) { toast('⚠ Le navigateur refuse de garder l\'écran allumé : règle la mise en veille du téléphone sur « jamais » pour le concert', 7000); } }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && stage.on) wakeOn(); });
+function stageClose() { if (wakeLock) wakeLock.release().catch(() => {}); stage.on = false; $('#stage').classList.remove('on'); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); renderSetlist(); }
 // Instrument d'un morceau : nom affiché du favori correspondant (s'il existe), sinon nom du son
 const instOf = it => { const f = DB.favs.find(x => x.multi === it.multi && kindOf(x) === kindOf(it)); return (f && (f.label || f.name)) || it.name || kindLbl(it); };
 const songLine = it => (it.title || it.name) + (it.transpose ? ' ' + trTxt(it.transpose) : '') + ' | ' + instOf(it);
