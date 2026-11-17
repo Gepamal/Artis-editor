@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.24</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.25</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -141,7 +141,7 @@ details summary{cursor:pointer;color:var(--muted)}
   <h2>Mes 10 favoris <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">· mêmes places que les 10 boutons Favorites de l'Artis</span><span class="grow"></span>
     <button class="small" id="btnFavById">+ Multi n°…</button><button class="small" id="btnFavProg">+ Programme n°…</button></h2>
   <div class="bank" id="bank"></div>
-  <p class="note">Clic = charge le son et l'ouvre en édition juste en dessous. Touches 1 à 9 et 0 = boutons 1 à 10. Glisse un bouton sur un autre pour les échanger. Une case vide prend le Multi en cours. Pour figer un favori dans le clavier : sauvegarde (💾), puis appui long sur le bouton Favorites du même numéro sur l'Artis. Le volume/mute réglé dans la page n'est pas dans le Multi : le bouton physique ne le reprend pas.</p>
+  <p class="note">Clic = charge le son et l'ouvre en édition juste en dessous. Touches 1 à 9 et 0 = boutons 1 à 10. Glisse un bouton sur un autre pour les échanger. Case vide : double-clic (avec confirmation) pour y mettre le Multi en cours ; un simple clic ne fait rien. Pour figer un favori dans le clavier : sauvegarde (💾), puis appui long sur le bouton Favorites du même numéro sur l'Artis.</p>
 </section>
 <section>
   <h2>Multi en cours <span class="grow"></span>
@@ -908,8 +908,10 @@ function renderFavs() {
     d.dataset.slot = k;
     if (!f) {
       d.className = 'slot empty';
-      d.innerHTML = `<span class="n">${k % 10}</span><div class="nm">${S.cur && !isProgramMode() ? '+ Multi en cours' : 'vide'}</div>`;
-      d.onclick = () => { if (S.cur && !isProgramMode()) addFav(S.cur.id, S.cur.name, 'multi', k); else toast('Charge un Multi, ou utilise « + Multi n°… »'); };
+      d.innerHTML = `<span class="n">${k % 10}</span><div class="nm">vide</div>`;
+      d.title = 'Bouton libre : double-clic pour y mettre le Multi en cours (avec confirmation)';
+      // Un simple clic ne fait RIEN (fausse manip sur scène) ; double-clic + confirmation pour remplir le bouton
+      d.ondblclick = () => { if (!(S.cur && !isProgramMode())) { toast('Charge un Multi, ou utilise « + Multi n°… »'); return; } if (confirm(`Mettre « ${S.cur.name} » (Multi ${S.cur.id}) sur le bouton ${k % 10} ?`)) addFav(S.cur.id, S.cur.name, 'multi', k); };
     } else {
       d.className = 'slot' + (isOnFav(f) ? ' on' : ''); d.draggable = true;
       const songs = ((curSl() || {}).items || []).filter(it => it.multi === f.multi && kindOf(it) === kindOf(f)).map(it => it.title || it.name);
