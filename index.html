@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.21</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.22</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -218,6 +218,7 @@ details summary{cursor:pointer;color:var(--muted)}
   <div class="row" style="margin-top:8px">
     <input type="search" id="libQ" placeholder="Rechercher un nom…" style="width:200px">
     <button class="small" id="btnLib" disabled>Lire la liste depuis l'Artis</button> <button class="small" id="btnProgs" disabled title="Lit le nom de tous les programmes de l'Artis et télécharge la liste (fichier texte)">📋 Liste des programmes</button></div>
+  <div class="row" style="margin-top:8px"><span class="note">Recherche (programmes) :</span> programmes <input type="text" id="rsProgs" value="1,10,13,15,21,65,95,113,177,182,187,191,194,251" style="width:300px"> Multis <input type="text" id="rsMultis" value="181,281,282,284,285,287" style="width:160px"> <button class="small" id="btnRsDump" disabled title="Lit le contenu complet de ces programmes et Multis (lecture seule, rien n'est écrit) et télécharge un fichier à m'envoyer">📦 Exporter pour la recherche</button></div>
   <div class="chips" id="libChips"></div>
   <div id="lib"></div>
   <p class="note">Clic = charger le Multi pour l'écouter et l'éditer. ★ = l'ajouter aux favoris de l'éditeur. Les familles sont devinées d'après le nom (un Multi peut être dans plusieurs) : c'est approximatif. <span class="u" style="color:var(--accent)">U</span> = Multi utilisateur.</p>
@@ -376,12 +377,12 @@ const Artis = {
 const MULTI = 0x1B, MULTI_SIZE = 5213, ZBASE = 0x15D, ZLEN = 0x4C0;
 const pack = b => { let acc = 0, nb = 0; const o = []; for (const v of b) { acc |= v << nb; nb += 8; while (nb >= 7) { o.push(acc & 127); acc >>= 7; nb -= 7; } } if (nb) o.push(acc & 127); return o; };
 const xsum = d => { const s = d.reduce((a, b) => a + b, 0); return [s & 127, (s >> 7) & 127]; };
-const madr = id => [0x00, MULTI, 0x01, id & 127, (id >> 7) & 127];
-const sameAdr = (x, id) => x[0] === 0xF0 && x[4] === 0x5A && x[7] === MULTI && x[9] === (id & 127) && x[10] === ((id >> 7) & 127);
+const madr = (id, t = MULTI) => [0x00, t, 0x01, id & 127, (id >> 7) & 127];
+const sameAdr = (x, id, t = MULTI) => x[0] === 0xF0 && x[4] === 0x5A && x[7] === t && x[9] === (id & 127) && x[10] === ((id >> 7) & 127);
 const Mem = {
   // INFO sans cache. Taille sur 3 octets, puis 1 octet drapeau (0 usine, 1 utilisateur). null = pas d'objet.
-  async info(id, ms = 400) {
-    const r = await ask([...H, 0x5A, 0x20, ...madr(id), 0xF7], x => sameAdr(x, id), ms);
+  async info(id, ms = 400, t = MULTI) {
+    const r = await ask([...H, 0x5A, 0x20, ...madr(id, t), 0xF7], x => sameAdr(x, id, t), ms);
     if (!r || r[5] !== 0x05) return null;
     return {size: r7(r.slice(11, 14)), user: r[14] === 1, name: ascii(r.slice(15, -2))};
   },
@@ -397,14 +398,14 @@ const Mem = {
     for (let id = from; id <= to; id++) if (!(await this.info(id, 400))) return id;
     return null;
   },
-  async read(id) {
-    const i = await this.info(id, 1000); if (!i) throw `Multi ${id} introuvable en mémoire`;
+  async read(id, t = MULTI) {
+    const i = await this.info(id, 1000, t); if (!i) throw `objet ${id} (type ${t}) introuvable en mémoire`;
     const o = [];
     for (let offs = 0; offs < i.size; offs += 2048) {
       const n = Math.min(2048, i.size - offs); let r = null;
       for (let k = 0; k < 3 && !r; k++) {
         if (k) await sleep(1000);
-        r = await ask([...H, 0x5A, 0x00, ...madr(id), ...n7(offs, 3), ...n7(n, 3), 0xF7], x => sameAdr(x, id) && x[5] === 0x01 && r7(x.slice(11, 14)) === offs, 3000);
+        r = await ask([...H, 0x5A, 0x00, ...madr(id, t), ...n7(offs, 3), ...n7(n, 3), 0xF7], x => sameAdr(x, id, t) && x[5] === 0x01 && r7(x.slice(11, 14)) === offs, 3000);
       }
       if (!r) throw `pas de réponse au bloc ${offs} du Multi ${id}`;
       const d = r.slice(17, -3), [c1, c2] = xsum(d);
@@ -496,7 +497,7 @@ const ZC = ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)'];
 
 /* ====================== Connexion ====================== */
 function setStatus(txt, cls) { const s = $('#status'); s.textContent = txt; s.className = 'pill ' + (cls || ''); }
-function enableUI(on) { ['#btnCmp', '#btnExportFull', '#btnRead', '#btnRevert', '#btnAddFav', '#btnSlAddCur', '#btnSave', '#btnLib', '#btnProgs', '#btnSlCheck', '#asmGo'].forEach(s => $(s).disabled = !on); }
+function enableUI(on) { ['#btnCmp', '#btnExportFull', '#btnRead', '#btnRevert', '#btnAddFav', '#btnSlAddCur', '#btnSave', '#btnLib', '#btnProgs', '#btnSlCheck', '#asmGo', '#btnRsDump'].forEach(s => $(s).disabled = !on); }
 function fillPorts() {
   const fill = (sel, ports) => {
     const prev = sel.value; sel.innerHTML = '';
@@ -1452,6 +1453,21 @@ async function checkSetlist() {
   box.textContent = lines.join('\n'); b.disabled = !out; b.textContent = '🩺 Vérifier pour la scène';
 }
 $('#btnSlCheck').onclick = checkSetlist;
+// Recherche : contenu brut de programmes (type 0A) et de Multis, lecture seule
+$('#btnRsDump').onclick = async () => {
+  const b = $('#btnRsDump'); if (!out || saving) return; b.disabled = true;
+  const nums = q => [...new Set(q.split(/[^0-9]+/).filter(Boolean).map(Number))];
+  const res = {format: 'artis-recherche', at: new Date().toISOString(), progs: [], multis: [], errors: []};
+  const all = [...nums($('#rsProgs').value).map(n => [0x0A, n]), ...nums($('#rsMultis').value).map(n => [MULTI, n])];
+  for (const [k, [t, n]] of all.entries()) {
+    b.textContent = `Lecture ${k + 1}/${all.length}…`;
+    try { const r = await Mem.read(n, t); (t === MULTI ? res.multis : res.progs).push({id: n, name: r.name, user: r.user, size: r.size, data: b64(r.data)}); }
+    catch (e) { res.errors.push(`${t === MULTI ? 'Multi' : 'programme'} ${n} : ${e}`); }
+  }
+  download('artis-recherche-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(res), 'application/json');
+  toast(`${res.progs.length} programmes et ${res.multis.length} Multis exportés` + (res.errors.length ? ` (${res.errors.length} erreur(s))` : ''), 5000);
+  b.disabled = !out; b.textContent = '📦 Exporter pour la recherche';
+};
 $('#asmTbl').innerHTML = [0, 1, 2, 3].map(z => `<tr><td>Zone ${z + 1}</td><td><select data-z="${z}" class="asmMode"><option value="keep">garder</option><option value="copy">copier la zone…</option></select></td><td>du Multi n° <input type="number" class="asmSrc" min="1" max="1024" style="width:70px"> zone <select class="asmSz">${[1, 2, 3, 4].map(k => `<option${k === z + 1 ? ' selected' : ''}>${k}</option>`).join('')}</select></td></tr>`).join('');
 const progCoherent = (d, z) => { const o = ZBASE + z * ZLEN; return d[o + 0x0C] * 128 + d[o + 0x0D] + 1 === ((d[o + 0x4B9] | (d[o + 0x4BA] << 8)) & 0x1FF); };
 $('#asmGo').onclick = async () => {
