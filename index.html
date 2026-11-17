@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.10.1</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.10.2</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -1447,7 +1447,17 @@ $('#btnExport').onclick = () => {
 function mergeData(j) {
   migrate(j); let ns = 0, nf = 0;
   for (const sl of j.setlists) { const k = DB.setlists.findIndex(x => x.id === sl.id); if (k >= 0) DB.setlists[k] = sl; else DB.setlists.push(sl); ns++; }
-  for (const f of j.favs) if (!DB.favs.some(x => x.multi === f.multi && kindOf(x) === kindOf(f))) { if (f.slot && slotFav(f.slot)) delete f.slot; DB.favs.push(f); nf++; }
+  // Boutons : on garde le n° du fichier s'il est libre ; un favori sans n° (export d'avant la 1.2) prend le 1er bouton libre
+  const place = f => { if (f.slot && !slotFav(f.slot)) return; delete f.slot; const k = freeSlot(); if (k) f.slot = k; };
+  // Sans n° de bouton dans le fichier : ordre d'apparition dans la setlist importée
+  const order = []; (j.setlists || []).forEach(sl => (sl.items || []).forEach(it => { const k = kindOf(it) + ':' + it.multi; if (!order.includes(k)) order.push(k); }));
+  const rank = f => { const r = order.indexOf(kindOf(f) + ':' + f.multi); return r < 0 ? 1e6 : r; };
+  if (!j.favs.some(f => f.slot)) j.favs = j.favs.slice().sort((a, b) => rank(a) - rank(b));
+  for (const f of j.favs) {
+    const ex = DB.favs.find(x => x.multi === f.multi && kindOf(x) === kindOf(f));
+    if (ex) { if (!ex.slot) { ex.slot = f.slot; place(ex); } continue; }
+    place(f); DB.favs.push(f); nf++;
+  }
   if (j.setlists[0]) DB.curSl = j.setlists[0].id;
   save(); renderFavs(); fillFavSel(); renderSetlist();
   return [ns, nf];
