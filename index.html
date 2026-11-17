@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.16</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.17</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -233,7 +233,9 @@ details summary{cursor:pointer;color:var(--muted)}
     <div class="row" style="margin-top:8px">
       <button class="small" id="btnSlAddCur" disabled>+ Multi en cours</button>
       <select id="slAddFav"></select><button class="small" id="btnSlAddFav">+ favori</button>
+      <span class="grow"></span><button class="small" id="btnSlCheck" disabled title="Lit dans l'Artis chaque Multi de la setlist et signale ce qui sonnerait faux en concert">🩺 Vérifier pour la scène</button>
     </div>
+    <pre id="slCheck" class="note" style="display:none;white-space:pre-wrap;margin-top:8px"></pre>
     <p class="note">En mode scène : → / Espace / Page suivante = morceau suivant, ← / Page précédente = précédent, Échap = sortir. Une pédale « page turner » Bluetooth marche donc aussi.</p>
   </div>
 </section>
@@ -473,7 +475,7 @@ const ZC = ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)'];
 
 /* ====================== Connexion ====================== */
 function setStatus(txt, cls) { const s = $('#status'); s.textContent = txt; s.className = 'pill ' + (cls || ''); }
-function enableUI(on) { ['#btnCmp', '#btnExportFull', '#btnRead', '#btnRevert', '#btnAddFav', '#btnSlAddCur', '#btnSave', '#btnLib', '#btnProgs'].forEach(s => $(s).disabled = !on); }
+function enableUI(on) { ['#btnCmp', '#btnExportFull', '#btnRead', '#btnRevert', '#btnAddFav', '#btnSlAddCur', '#btnSave', '#btnLib', '#btnProgs', '#btnSlCheck'].forEach(s => $(s).disabled = !on); }
 function fillPorts() {
   const fill = (sel, ports) => {
     const prev = sel.value; sel.innerHTML = '';
@@ -1383,6 +1385,43 @@ async function scanProgs() {
   delete b.dataset.busy; b.disabled = !out; b.textContent = '📋 Liste des programmes';
 }
 $('#btnProgs').onclick = scanProgs;
+// Vérification avant concert : chaque Multi de la setlist existe-t-il, et joue-t-il les programmes qu'il affiche ?
+// [V 17/11] Un Multi dont le n° de programme (+0x0C/+0x0D) diffère de sa copie (+0x4B9, bits 0-8) affiche un son et en joue un autre.
+async function checkSetlist() {
+  const sl = curSl(), b = $('#btnSlCheck'), box = $('#slCheck'); if (!sl || !out || saving) return;
+  b.disabled = true; box.style.display = ''; box.textContent = 'Vérification…';
+  const lines = [], memo = {}; let bad = 0;
+  try {
+    if (!(await Mem.info(1, 1500))) throw "l'Artis ne répond pas";
+    for (const [k, it] of sl.items.entries()) {
+      const t = `${k + 1}. ${it.title || it.name}${it.transpose ? ' (' + trTxt(it.transpose) + ')' : ''}`;
+      if (kindOf(it) !== 'multi') { const nm = await Artis.name(0x0A, it.multi); if (!nm) { bad++; lines.push(`✗ ${t} : programme ${it.multi} introuvable`); } else lines.push(`✓ ${t} : programme ${it.multi} ${nm}`); continue; }
+      b.textContent = `Vérification ${k + 1}/${sl.items.length}…`;
+      if (!(it.multi in memo)) {
+        let r = null; try { r = await Mem.read(it.multi); } catch (e) {}
+        if (!r) memo[it.multi] = {err: `Multi ${it.multi} n'existe pas dans l'Artis`};
+        else {
+          const issues = [], zs = [];
+          for (let z = 0; z < 4; z++) {
+            const o = ZBASE + z * ZLEN, d = r.data, p = d[o + 0x0C] * 128 + d[o + 0x0D] + 1, c = (d[o + 0x4B9] | (d[o + 0x4BA] << 8)) & 0x1FF, ev = d[o + 0x1B];
+            if (ev === 0) continue;
+            const t16 = (d[o + 0x15] << 8) | d[o + 0x16], tr = t16 > 32767 ? t16 - 65536 : t16;
+            zs.push(`z${z + 1} ${await Artis.name(0x0A, c) || c}${tr ? ' ' + trTxt(tr) : ''}`);
+            if (p !== c) issues.push(`zone ${z + 1} affiche ${p} ${await Artis.name(0x0A, p) || ''} mais joue ${c} ${await Artis.name(0x0A, c) || ''} → rechoisis-le en façade puis Save sur l'Artis`);
+          }
+          memo[it.multi] = {name: r.name, issues, zs};
+        }
+      }
+      const m = memo[it.multi];
+      if (m.err) { bad++; lines.push(`✗ ${t} : ${m.err}`); }
+      else if (m.issues.length) { bad++; lines.push(`✗ ${t} : Multi ${it.multi} « ${m.name} » : ${m.issues.join(' ; ')}`); }
+      else lines.push(`✓ ${t} : Multi ${it.multi} « ${m.name} » = ${m.zs.join(', ')}`);
+    }
+    lines.unshift(bad ? `⚠ ${bad} morceau(x) à corriger avant le concert :` : '✅ Tous les sons de la setlist sont en place.');
+  } catch (e) { lines.unshift('⚠ ' + e); }
+  box.textContent = lines.join('\n'); b.disabled = !out; b.textContent = '🩺 Vérifier pour la scène';
+}
+$('#btnSlCheck').onclick = checkSetlist;
 $('#btnLib').onclick = scanLib; $('#libQ').oninput = renderLib;
 $('#btnRevert').onclick = () => S.cur && goMulti(S.cur.id, S.cur.name);
 $('#btnSave').onclick = svToggle; $('#svFind').onclick = svFind; $('#svGo').onclick = svGo; $('#svCancel').onclick = () => { $('#savePanel').classList.remove('on'); $('#btnSave').classList.remove('open'); };
