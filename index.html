@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.22</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.23</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -879,7 +879,9 @@ async function goMulti(id, label) {
 async function goMulti2(id, label) {
   S.prog = null; loadAt = Date.now(); Artis.selectMulti(id);
   await sleep(350);
-  const c = await Artis.current();
+  // Un gros Multi peut mettre plus longtemps à se charger : on relit jusqu'à ~2 s avant de conclure à un échec
+  let c = await Artis.current();
+  for (let k = 0; k < 5 && c && c.id !== id; k++) { await sleep(350); c = await Artis.current(); }
   if (!c || c.id !== id) {
     // Cause la plus probable : ce n° de Multi n'existe pas sur le clavier
     const exists = c ? await Mem.info(id, 800) : null;
@@ -1029,9 +1031,21 @@ async function stageGo(i) {
   $('#stItems').innerHTML = sl.items.map((x, k) => `<div class="it${k === i ? ' on' : ''}" data-k="${k}">${k + 1}. ${esc(x.title || x.name)}${x.transpose ? ` <span class="trn">${trTxt(x.transpose)}</span>` : ''} <span class="in">| ${esc(instOf(x))}</span></div>`).join('');
   $('#stItems').querySelectorAll('.it').forEach(d => d.onclick = () => stageGo(+d.dataset.k));
   renderSetlist();
-  const ok = await goSong(it); stage.ok = ok;
-  if (!ok) $('#stNote').innerHTML = '<span class="err">⚠ ' + esc(S.loadErr || 'Son non chargé') + '</span>';
+  // Navigation rapide : un seul chargement à la fois, et on finit toujours sur le DERNIER morceau demandé
+  // (sinon un chargement plus ancien pouvait arriver après et laisser le mauvais son, ou afficher l'erreur d'un autre morceau).
+  stage.want = i; const tok = ++stageTok; if (stageBusy) return; stageBusy = true;
+  try {
+    for (;;) {
+      const k = stage.want, t = stageTok, item = curSl().items[k];
+      S.loadErr = ''; const ok = await goSong(item);
+      if (t !== stageTok) continue;
+      stage.ok = ok;
+      if (!ok) $('#stNote').innerHTML = '<span class="err">⚠ ' + esc(S.loadErr || 'Son non chargé') + '</span>';
+      break;
+    }
+  } finally { stageBusy = false; }
 }
+let stageTok = 0, stageBusy = false;
 
 /* ====================== Simulateur (mode démo) ====================== */
 function makeFakeArtis() {
