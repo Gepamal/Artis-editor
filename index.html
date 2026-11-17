@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.23</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.24</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -1298,7 +1298,7 @@ async function svGo() {
     // une copie du n° à +0x4B9/+0x4BA (bits 0-8, +0x200 pour certains programmes) et des dizaines d'octets tirés du programme.
     // Le tampon 0B ne les contient pas : la page ne sait pas faire un changement de programme correct, elle refuse.
     const progs = [0, 1, 2, 3].map(z => (mixOf(z) || {}).wantProg);
-    const pz = [0, 1, 2, 3].filter(z => { const o = ZBASE + z * ZLEN, p = data[o + 0x0C] * 128 + data[o + 0x0D] + 1, c = (data[o + 0x4B9] | (data[o + 0x4BA] << 8)) & 0x1FF; return p !== c; });
+    const pz = [0, 1, 2, 3].filter(z => { const o = ZBASE + z * ZLEN, p = data[o + 0x0C] * 128 + data[o + 0x0D] + 1, c = (src.data[o + 0x4B9] | (src.data[o + 0x4BA] << 8)) & 0x1FF; return p !== c; });   // c = programme réellement joué, pris dans le Multi en mémoire (pas dans le tampon)
     if (pz.length) throw `programme changé en ${pz.map(z => 'zone ' + (z + 1)).join(', ')} : la page ne sait pas encore l'enregistrer correctement (le Multi afficherait le nouveau son mais jouerait l'ancien). Choisis le programme en façade et sauvegarde avec la touche Save de l'Artis. Rien écrit.`;
     if (wants.some(w => w !== undefined)) svLog('   Volumes d\'entrée écrits : ' + wants.map((w, z) => w === undefined ? null : `zone ${z + 1} = ${w}`).filter(Boolean).join(', '));
     const sT = $('#svTrL').style.display !== 'none' && $('#svTrOff').checked ? +$('#svTrOff').dataset.t : 0;
@@ -1452,6 +1452,7 @@ async function checkSetlist() {
             if (ev === 0) continue;
             const t16 = (d[o + 0x15] << 8) | d[o + 0x16], tr = t16 > 32767 ? t16 - 65536 : t16;
             zs.push(`z${z + 1} ${await Artis.name(0x0A, c) || c}${tr ? ' ' + trTxt(tr) : ''}`);
+            if (tr % 12) issues.push(`zone ${z + 1} est enregistrée transposée de ${trTxt(tr)} : en scène, ça s'AJOUTE au transpose du morceau → remets-la à 0 et 💾`);
             if (p !== c) issues.push(`zone ${z + 1} affiche ${p} ${await Artis.name(0x0A, p) || ''} mais joue ${c} ${await Artis.name(0x0A, c) || ''} → rechoisis-le en façade puis Save sur l'Artis`);
           }
           memo[it.multi] = {name: r.name, issues, zs};
@@ -1460,6 +1461,7 @@ async function checkSetlist() {
       const m = memo[it.multi];
       if (m.err) { bad++; lines.push(`✗ ${t} : ${m.err}`); }
       else if (m.issues.length) { bad++; lines.push(`✗ ${t} : Multi ${it.multi} « ${m.name} » : ${m.issues.join(' ; ')}`); }
+      else if (m.issues.length) {}
       else lines.push(`✓ ${t} : Multi ${it.multi} « ${m.name} » = ${m.zs.join(', ')}`);
     }
     lines.unshift(bad ? `⚠ ${bad} morceau(x) à corriger avant le concert :` : '✅ Tous les sons de la setlist sont en place.');
