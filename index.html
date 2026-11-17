@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.18</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.19</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -204,6 +204,15 @@ details summary{cursor:pointer;color:var(--muted)}
   <label class="note row" style="margin-top:8px"><input type="checkbox" id="chkVerify" checked> Relire la zone après chaque modif pour vérifier que l'Artis a bien pris la valeur</label>
 </section>
 
+<section>
+ <details id="asmBox"><summary style="cursor:pointer"><h2 style="display:inline-flex;margin:0">🧩 Assembler un Multi</h2> <span class="note">(prendre des zones toutes faites dans d'autres Multis)</span></summary>
+  <p class="note">La page ne sait pas changer le programme d'une zone proprement (voir 💾). Ici, on recopie des zones <b>entières</b> déjà réglées et sauvées sur l'Artis (programme, réglages, sliders, statut Mute compris). Ex. : zone 1 = zone 1 du 281 (ton piano), zone 2 = zone 1 du 282 (B3). Les zones « garder » restent celles du Multi de destination (ou du 1er Multi source s'il n'existe pas). Ensuite, règle les splits dans la page et 💾.</p>
+  <div class="row">N° destination <input type="number" id="asmId" min="257" max="1024" style="width:80px"> Nom <input type="text" id="asmName" maxlength="16" style="width:180px"></div>
+  <table class="tbl" id="asmTbl"></table>
+  <div class="row"><button id="asmGo" disabled>Assembler et écrire dans l'Artis</button></div>
+  <pre id="asmLog" class="note" style="white-space:pre-wrap"></pre>
+ </details>
+</section>
 <section>
  <details id="libBox"><summary style="cursor:pointer"><h2 style="display:inline-flex;margin:0">Bibliothèque des Multis du clavier</h2> <span class="note">(cliquer pour ouvrir)</span></summary>
   <div class="row" style="margin-top:8px">
@@ -487,7 +496,7 @@ const ZC = ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)'];
 
 /* ====================== Connexion ====================== */
 function setStatus(txt, cls) { const s = $('#status'); s.textContent = txt; s.className = 'pill ' + (cls || ''); }
-function enableUI(on) { ['#btnCmp', '#btnExportFull', '#btnRead', '#btnRevert', '#btnAddFav', '#btnSlAddCur', '#btnSave', '#btnLib', '#btnProgs', '#btnSlCheck'].forEach(s => $(s).disabled = !on); }
+function enableUI(on) { ['#btnCmp', '#btnExportFull', '#btnRead', '#btnRevert', '#btnAddFav', '#btnSlAddCur', '#btnSave', '#btnLib', '#btnProgs', '#btnSlCheck', '#asmGo'].forEach(s => $(s).disabled = !on); }
 function fillPorts() {
   const fill = (sel, ports) => {
     const prev = sel.value; sel.innerHTML = '';
@@ -1440,6 +1449,46 @@ async function checkSetlist() {
   box.textContent = lines.join('\n'); b.disabled = !out; b.textContent = '🩺 Vérifier pour la scène';
 }
 $('#btnSlCheck').onclick = checkSetlist;
+$('#asmTbl').innerHTML = [0, 1, 2, 3].map(z => `<tr><td>Zone ${z + 1}</td><td><select data-z="${z}" class="asmMode"><option value="keep">garder</option><option value="copy">copier la zone…</option></select></td><td>du Multi n° <input type="number" class="asmSrc" min="1" max="1024" style="width:70px"> zone <select class="asmSz">${[1, 2, 3, 4].map(k => `<option${k === z + 1 ? ' selected' : ''}>${k}</option>`).join('')}</select></td></tr>`).join('');
+const progCoherent = (d, z) => { const o = ZBASE + z * ZLEN; return d[o + 0x0C] * 128 + d[o + 0x0D] + 1 === ((d[o + 0x4B9] | (d[o + 0x4BA] << 8)) & 0x1FF); };
+$('#asmGo').onclick = async () => {
+  if (saving || !out) return; const L = t => $('#asmLog').textContent += t + '\n'; $('#asmLog').textContent = '';
+  const id = parseInt($('#asmId').value, 10), name = $('#asmName').value.trim();
+  if (!(id >= 257 && id <= 1024)) { L('✗ N° de destination : 257 à 1024 (Multis utilisateur)'); return; }
+  if (!name || /[^\x20-\x7e]/.test(name)) { L('✗ Nom : 1 à 16 caractères sans accents'); return; }
+  const rows = [...$('#asmTbl').querySelectorAll('tr')].map(tr => ({copy: tr.querySelector('.asmMode').value === 'copy', src: parseInt(tr.querySelector('.asmSrc').value, 10), sz: +tr.querySelector('.asmSz').value - 1}));
+  if (!rows.some(r => r.copy)) { L('✗ Choisis au moins une zone à copier'); return; }
+  if (rows.some(r => r.copy && !(r.src >= 1))) { L('✗ N° de Multi source manquant'); return; }
+  saving = true; $('#asmGo').disabled = true;
+  try {
+    if (!(await Mem.info(1, 1500))) throw "l'Artis ne répond pas";
+    const dst = await Mem.info(id, 1000);
+    if (dst && !dst.user) throw `le n° ${id} est un Multi d'usine : rien écrit`;
+    if (dst && !confirm(`Le Multi ${id} « ${dst.name} » va être ÉCRASÉ par « ${name} ». Continuer ?`)) throw 'annulé : rien écrit';
+    const cache = {}; const get = async n => cache[n] || (cache[n] = await Mem.read(n));
+    const base = dst ? await get(id) : await get(rows.find(r => r.copy).src);
+    const data = base.data.slice();
+    for (const [z, r] of rows.entries()) {
+      if (!r.copy) { L(`  zone ${z + 1} : gardée`); continue; }
+      const s = await get(r.src);
+      if (!progCoherent(s.data, r.sz)) throw `zone ${r.sz + 1} du Multi ${r.src} incohérente (affiche un programme, en joue un autre) : corrige-la d'abord en façade + Save. Rien écrit.`;
+      for (let i = 0; i < ZLEN; i++) data[ZBASE + z * ZLEN + i] = s.data[ZBASE + r.sz * ZLEN + i];
+      data[ZBASE + z * ZLEN + 3] = base.data[ZBASE + z * ZLEN + 3];   // la zone garde son canal MIDI
+      const o = ZBASE + r.sz * ZLEN, p = s.data[o + 0x0C] * 128 + s.data[o + 0x0D] + 1;
+      L(`  zone ${z + 1} ← zone ${r.sz + 1} du Multi ${r.src} « ${s.name} » (programme ${p} ${await Artis.name(0x0A, p) || ''})`);
+    }
+    for (let z = 0; z < 4; z++) if (!progCoherent(data, z)) L(`  ⚠ zone ${z + 1} gardée mais incohérente : elle jouera un autre son que celui affiché`, 'warn');
+    L(`Écriture du n° ${id} « ${name} »…`);
+    if (!dst && !(await Mem.isFree(id))) throw `le n° ${id} vient d'être occupé : rien écrit`;
+    await Mem.write(id, name, data);
+    const back = await Mem.read(id);
+    if (back.size !== data.length || back.data.some((v, k) => v !== data[k])) throw 'relecture différente : ne compte pas sur ce Multi';
+    L(`✅ Écrit et relu : Multi ${id} « ${name} ». Je le charge : règle les splits puis 💾.`);
+    Artis.names[MULTI + ':' + id] = name;
+    saving = false; await goMulti(id, name);
+  } catch (e) { L('⚠ ' + e); }
+  saving = false; $('#asmGo').disabled = !out;
+};
 $('#btnLib').onclick = scanLib; $('#libQ').oninput = renderLib;
 $('#btnRevert').onclick = () => S.cur && goMulti(S.cur.id, S.cur.name);
 $('#btnSave').onclick = svToggle; $('#svFind').onclick = svFind; $('#svGo').onclick = svGo; $('#svCancel').onclick = () => { $('#savePanel').classList.remove('on'); $('#btnSave').classList.remove('open'); };
