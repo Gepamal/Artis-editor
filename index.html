@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.20</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.21</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -193,7 +193,7 @@ details summary{cursor:pointer;color:var(--muted)}
   </div>
   <p class="note">Clique une touche pour l'entendre (glisse pour enchaîner, « Accord » pour en tenir plusieurs ; les zones masquées ou mutées ne jouent pas). Tire les poignées pour régler les notes basse et haute, ou le milieu de la barre pour déplacer toute la plage. Les flèches ◀ ▶ au bout d'une barre signalent que la zone déborde du clavier dessiné (jusqu'à C-1 ou G9, la plage MIDI complète) ; tirer une poignée au-delà du bord donne ces valeurs. Notation Kurzweil : C4 = 60.</p>
   <table>
-    <thead><tr><th>Zone</th><th>Canal</th><th>Programme <span class="muted" title="Changer le programme d'une zone est expérimental : la colonne Vérif. dira si l'Artis l'a pris">(exp.)</span></th><th>Note basse</th><th>Note haute</th><th>Transpose</th><th>Volume <span class="muted" title="Envoyé en CC 7 sur le canal de la zone, comme le slider du clavier. Mémorisé par la page pour chaque Multi et renvoyé à chaque chargement.">(?)</span></th><th>Reverb <span class="muted" title="Position de départ du slider REVERB pour cette zone (envoyée par l'Artis en CC 28 quand il charge le Multi). Envoyée tout de suite pour l'entendre, écrite dans le Multi à la sauvegarde 💾.">(?)</span></th><th>FX <span class="muted" title="Position de départ du slider FX (CC 27) : son effet dépend du programme (souvent le delay). Envoyée tout de suite, écrite dans le Multi à la sauvegarde 💾.">(?)</span></th><th>Vérif.</th></tr></thead>
+    <thead><tr><th>Zone</th><th>Canal</th><th>Programme</th><th>Note basse</th><th>Note haute</th><th>Transpose</th><th>Volume <span class="muted" title="Envoyé en CC 7 sur le canal de la zone, comme le slider du clavier. Mémorisé par la page pour chaque Multi et renvoyé à chaque chargement.">(?)</span></th><th>Reverb <span class="muted" title="Position de départ du slider REVERB pour cette zone (envoyée par l'Artis en CC 28 quand il charge le Multi). Envoyée tout de suite pour l'entendre, écrite dans le Multi à la sauvegarde 💾.">(?)</span></th><th>FX <span class="muted" title="Position de départ du slider FX (CC 27) : son effet dépend du programme (souvent le delay). Envoyée tout de suite, écrite dans le Multi à la sauvegarde 💾.">(?)</span></th><th>Vérif.</th></tr></thead>
     <tbody id="ztable"></tbody>
   </table>
   <details id="probe" style="margin-top:10px"><summary>🔍 Détecter un réglage du clavier (pour m'aider à décoder volume, mute, etc.)</summary>
@@ -563,6 +563,7 @@ function alertBox(msg) { toast(msg, 7000); }
 /* ====================== Lecture ====================== */
 async function readAll(cur) {
   S.cur = cur || await Artis.current();
+  S.showMuted = false;
   renderCur();
   for (let z = 0; z < 4; z++) { S.zones[z] = await Artis.zone(z); S.check[z] = ''; }
   const ax = await Artis.aux(); S.zones.forEach((zz, z) => { if (zz) zz.aux = ax ? ax[z] : undefined; });
@@ -753,8 +754,10 @@ function renderTable() {
   const nn = [0, 1, 2, 3].filter(k => S.zones[k] && !isHidden(k) && evOf(k) === null);
   if (nn.length && S.cur && !isProgramMode()) { const tr = document.createElement('tr'); tr.innerHTML = '<td colspan="10" class="note warn">⚠ ' + nn.map(k => 'Zone ' + (k + 1)).join(', ') + ' : volume « None », la zone garde le volume laissé par le Multi d\'avant. Règle son slider (puis 💾) pour qu\'elle sonne toujours pareil. <button class="small">tout mettre à 100</button></td>'; tr.querySelector('button').onclick = () => { nn.forEach(k => setVol(k, 100)); renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
   if (nh.length) { const tr = document.createElement('tr'); tr.innerHTML = `<td colspan="10" class="note">${nh.map(k => 'Zone ' + (k + 1)).join(', ')} masquée${nh.length > 1 ? 's' : ''} pour ce Multi · <button class="small" id="btnShowAll">tout afficher</button></td>`; tr.querySelector('button').onclick = () => { DB.hidden[S.cur.id] = []; save(); renderZones(); renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
+  const mz = [0, 1, 2, 3].filter(k => S.zones[k] && !isHidden(k) && isMuted(k) && !S.showMuted);
+  if (mz.length) { const tr = document.createElement('tr'); tr.innerHTML = `<td colspan="10" class="note">🔇 ${mz.map(k => 'Zone ' + (k + 1) + ' (' + esc(S.zones[k].progName || S.zones[k].prog) + ')').join(', ')} : muette${mz.length > 1 ? 's' : ''} · <button class="small">afficher</button></td>`; tr.querySelector('button').onclick = () => { S.showMuted = true; renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
   S.zones.forEach((z, i) => {
-    if (isHidden(i)) return;
+    if (isHidden(i) || mz.includes(i)) return;
     const tr = document.createElement('tr');
     if (!z) { tr.innerHTML = `<td><span class="zdot" style="background:${ZC[i]}"></span>Zone ${i + 1}</td><td colspan="9" class="muted">non lue</td>`; tb.appendChild(tr); return; }
     const c = S.check[i];
@@ -762,7 +765,7 @@ function renderTable() {
       : mixOf(i).wantProg !== undefined ? '<span class="warn" title="Changement refusé en direct par l’Artis : appliqué à la sauvegarde">💾 programme à sauvegarder</span>' : c === 'nores' ? '<span class="warn">pas de réponse</span>' : c.startsWith('bad:') ? `<span class="err" title="L'Artis a gardé une autre valeur">⚠ l'Artis indique ${esc(c.slice(4))}</span>` : '';
     tr.innerHTML = `<td><span class="zdot" style="background:${ZC[i]}"></span>Zone ${i + 1} <button class="small" data-hide="1" title="Masquer cette zone à l'écran pour ce Multi (elle reste active sur le clavier)">masquer</button></td>
       <td>${z.canal}</td>
-      <td><input type="number" data-k="prog" min="1" max="16383" value="${progOf(i)}" style="width:70px" title="Numéro du programme : appliqué à la sauvegarde (💾)"> <span class="muted">${esc((mixOf(i).wantProg !== undefined ? mixOf(i).wantName : z.progName) || '')}</span></td>
+      <td title="Pour changer le programme : en façade puis Save sur l'Artis, ou 🧩 Assembler (copie d'une zone d'un autre Multi). La page ne sait pas l'écrire proprement."><b>${z.prog}</b> <span class="muted">${esc(z.progName || '')}</span></td>
       <td><input type="text" data-k="lo" value="${noteName(z.lo)}" title="${z.lo}"> <span class="muted">${z.lo}</span></td>
       <td><input type="text" data-k="hi" value="${noteName(z.hi)}" title="${z.hi}"> <span class="muted">${z.hi}</span></td>
       <td><div class="tr"><button class="small" data-t="-1">−</button><output>${z.tr > 0 ? '+' : ''}${z.tr}</output><button class="small" data-t="1">+</button><button class="small" data-t="0" title="Remettre à 0">0</button></div></td>
@@ -786,7 +789,7 @@ function renderTable() {
     if (axp) axp.onclick = () => setAux(i, null);
     if (axv) axv.addEventListener('input', () => { const v = parseInt(axv.value, 10); const zz = S.zones[i]; if (zz && v >= 0 && v <= 127) send([0xB0 + ((zz.canal - 1) & 15), 28, v]); });
     if (axv) axv.addEventListener('change', () => { const v = parseInt(axv.value, 10); if (axv.value.trim() === '') return setAux(i, null); if (!(v >= 0 && v <= 127)) { toast('Reverb : 0 à 127, ou Prog'); renderTable(); return; } setAux(i, v); });
-    tr.querySelector('input[data-k=prog]').addEventListener('change', e => applyProgram(i, parseInt(e.target.value, 10)));
+
     tr.querySelectorAll('button[data-t]').forEach(b => b.addEventListener('click', () => {
       const d = +b.dataset.t; applyTranspose(i, d === 0 ? 0 : z.tr + d);
     }));
