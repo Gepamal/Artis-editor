@@ -126,7 +126,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.11</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.12</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -193,7 +193,7 @@ details summary{cursor:pointer;color:var(--muted)}
   </div>
   <p class="note">Clique une touche pour l'entendre (glisse pour enchaîner, « Accord » pour en tenir plusieurs ; les zones masquées ou mutées ne jouent pas). Tire les poignées pour régler les notes basse et haute, ou le milieu de la barre pour déplacer toute la plage. Les flèches ◀ ▶ au bout d'une barre signalent que la zone déborde du clavier dessiné (jusqu'à C-1 ou G9, la plage MIDI complète) ; tirer une poignée au-delà du bord donne ces valeurs. Notation Kurzweil : C4 = 60.</p>
   <table>
-    <thead><tr><th>Zone</th><th>Canal</th><th>Programme <span class="muted" title="Changer le programme d'une zone est expérimental : la colonne Vérif. dira si l'Artis l'a pris">(exp.)</span></th><th>Note basse</th><th>Note haute</th><th>Transpose</th><th>Volume <span class="muted" title="Envoyé en CC 7 sur le canal de la zone, comme le slider du clavier. Mémorisé par la page pour chaque Multi et renvoyé à chaque chargement.">(?)</span></th><th>Vérif.</th></tr></thead>
+    <thead><tr><th>Zone</th><th>Canal</th><th>Programme <span class="muted" title="Changer le programme d'une zone est expérimental : la colonne Vérif. dira si l'Artis l'a pris">(exp.)</span></th><th>Note basse</th><th>Note haute</th><th>Transpose</th><th>Volume <span class="muted" title="Envoyé en CC 7 sur le canal de la zone, comme le slider du clavier. Mémorisé par la page pour chaque Multi et renvoyé à chaque chargement.">(?)</span></th><th>Reverb <span class="muted" title="Aux Send Level de la zone (menu de zone de l'Artis) : Program = niveau prévu par le programme, sinon 0-127. Pas d'écoute en direct : écrit dans le Multi à la sauvegarde 💾, tu l'entends en rechargeant le Multi.">(💾)</span></th><th>Vérif.</th></tr></thead>
     <tbody id="ztable"></tbody>
   </table>
   <details id="probe" style="margin-top:10px"><summary>🔍 Détecter un réglage du clavier (pour m'aider à décoder volume, mute, etc.)</summary>
@@ -336,6 +336,13 @@ const Artis = {
     // [V 16/11, sonde de l’utilisateur] Volume d'entrée de la zone à +0x1B (param 0x18) : 255 = None, sinon 0-127. L'Artis l'envoie en CC 7 au chargement.
     return {canal: d[3], prog: d[0x0C] * 128 + d[0x0D] + 1, lo: d[0x12], hi: d[0x13], tr: t > 32767 ? t - 65536 : t, ev: d[0x1B]};
   },
+  // [V 17/11, sondes de l’utilisateur] Partie commune (0B sel 1) : Aux Send Level de la zone N sur 16 bits à +0x22 + 2·N,
+  // valeur affichée = valeur stockée (0-127), 0xFFFF = « Program ».
+  async aux() {
+    const x = await ask([...H, 0x0B, 0, 0, 0, 1, 0, 0, 0xF7], x => x[0] === 0xF0 && x[4] === 0x0B && x[8] === 1 && x[9] === 0, 2000);
+    if (!x) return null; const d = unpack(x.slice(11, -3));
+    return [0, 1, 2, 3].map(z => { const v = (d[0x22 + 2 * z] << 8) | d[0x23 + 2 * z]; return v === 0xFFFF ? null : v; });
+  },
   // Nom d'un objet (type 0A programme, 1B Multi) par requête INFO 5A 20
   names: {},
   async name(type, id) {
@@ -426,6 +433,9 @@ const P_EV = 0x18, EV_NONE = 255;
 // [V 16/11] L'Artis refuse l'écriture en direct du param 0x18 (relecture = 255) : la page garde le volume voulu (mix.want),
 // le fait entendre en CC 7 et l'écrit dans l'objet Multi au moment de la sauvegarde (octets +0x1B et +0xA0, comme la façade).
 const evOf = z => { const zz = S.zones[z]; if (!zz) return null; const w = (mixOf(z) || {}).want; if (w !== undefined) return w; return zz.ev !== undefined && zz.ev !== EV_NONE ? zz.ev : null; };
+// Reverb du Multi = Aux Send Level par zone : null = « Program » (niveau du programme), 0-127 sinon. Écrit à la sauvegarde.
+const auxOf = z => { const m = mixOf(z) || {}; return 'wantAux' in m ? m.wantAux : (S.zones[z] || {}).aux; };
+function setAux(z, v) { mixOf(z).wantAux = v; save(); renderTable(); }
 const progOf = z => { const w = (mixOf(z) || {}).wantProg; return w !== undefined ? w : (S.zones[z] || {}).prog; };
 const isMuted = z => evOf(z) === 0 || (evOf(z) === null && !!(mixOf(z) || {}).mute);
 // Ancien système (avant 1.7) : volume/mute gardés par la page, renvoyés en CC 7. Ne sert plus que pour les zones en « None ».
@@ -526,6 +536,7 @@ async function readAll(cur) {
   S.cur = cur || await Artis.current();
   renderCur();
   for (let z = 0; z < 4; z++) { S.zones[z] = await Artis.zone(z); S.check[z] = ''; }
+  const ax = await Artis.aux(); S.zones.forEach((zz, z) => { if (zz) zz.aux = ax ? ax[z] : undefined; });
   renderZones();
   for (let z = 0; z < 4; z++) if (S.zones[z]) { const p = S.zones[z].prog; S.zones[z].progName = await Artis.name(0x0A, p); }
   renderTable();
@@ -711,12 +722,12 @@ function renderTable() {
   const nh = [0, 1, 2, 3].filter(isHidden);
   // Volume d'entrée « None » : la zone garde le volume laissé par le Multi précédent (même canal), d'où des sons qui « se ressemblent »
   const nn = [0, 1, 2, 3].filter(k => S.zones[k] && !isHidden(k) && evOf(k) === null);
-  if (nn.length && S.cur && !isProgramMode()) { const tr = document.createElement('tr'); tr.innerHTML = '<td colspan="8" class="note warn">⚠ ' + nn.map(k => 'Zone ' + (k + 1)).join(', ') + ' : volume « None », la zone garde le volume laissé par le Multi d\'avant. Règle son slider (puis 💾) pour qu\'elle sonne toujours pareil. <button class="small">tout mettre à 100</button></td>'; tr.querySelector('button').onclick = () => { nn.forEach(k => setVol(k, 100)); renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
-  if (nh.length) { const tr = document.createElement('tr'); tr.innerHTML = `<td colspan="8" class="note">${nh.map(k => 'Zone ' + (k + 1)).join(', ')} masquée${nh.length > 1 ? 's' : ''} pour ce Multi · <button class="small" id="btnShowAll">tout afficher</button></td>`; tr.querySelector('button').onclick = () => { DB.hidden[S.cur.id] = []; save(); renderZones(); renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
+  if (nn.length && S.cur && !isProgramMode()) { const tr = document.createElement('tr'); tr.innerHTML = '<td colspan="9" class="note warn">⚠ ' + nn.map(k => 'Zone ' + (k + 1)).join(', ') + ' : volume « None », la zone garde le volume laissé par le Multi d\'avant. Règle son slider (puis 💾) pour qu\'elle sonne toujours pareil. <button class="small">tout mettre à 100</button></td>'; tr.querySelector('button').onclick = () => { nn.forEach(k => setVol(k, 100)); renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
+  if (nh.length) { const tr = document.createElement('tr'); tr.innerHTML = `<td colspan="9" class="note">${nh.map(k => 'Zone ' + (k + 1)).join(', ')} masquée${nh.length > 1 ? 's' : ''} pour ce Multi · <button class="small" id="btnShowAll">tout afficher</button></td>`; tr.querySelector('button').onclick = () => { DB.hidden[S.cur.id] = []; save(); renderZones(); renderTable(); }; setTimeout(() => tb.appendChild(tr)); }
   S.zones.forEach((z, i) => {
     if (isHidden(i)) return;
     const tr = document.createElement('tr');
-    if (!z) { tr.innerHTML = `<td><span class="zdot" style="background:${ZC[i]}"></span>Zone ${i + 1}</td><td colspan="7" class="muted">non lue</td>`; tb.appendChild(tr); return; }
+    if (!z) { tr.innerHTML = `<td><span class="zdot" style="background:${ZC[i]}"></span>Zone ${i + 1}</td><td colspan="8" class="muted">non lue</td>`; tb.appendChild(tr); return; }
     const c = S.check[i];
     const st = mixOf(i).wantProg !== undefined ? '<span class="warn">💾 programme à sauvegarder</span>' : c === 'ok' ? '<span class="okc">✓ confirmé</span>' : c === 'pending' ? '<span class="muted">…</span>'
       : mixOf(i).wantProg !== undefined ? '<span class="warn" title="Changement refusé en direct par l’Artis : appliqué à la sauvegarde">💾 programme à sauvegarder</span>' : c === 'nores' ? '<span class="warn">pas de réponse</span>' : c.startsWith('bad:') ? `<span class="err" title="L'Artis a gardé une autre valeur">⚠ l'Artis indique ${esc(c.slice(4))}</span>` : '';
@@ -727,6 +738,7 @@ function renderTable() {
       <td><input type="text" data-k="hi" value="${noteName(z.hi)}" title="${z.hi}"> <span class="muted">${z.hi}</span></td>
       <td><div class="tr"><button class="small" data-t="-1">−</button><output>${z.tr > 0 ? '+' : ''}${z.tr}</output><button class="small" data-t="1">+</button><button class="small" data-t="0" title="Remettre à 0">0</button></div></td>
       <td><div class="tr" title="Volume d'entrée de la zone : enregistré dans le Multi quand tu sauvegardes, repris par les boutons Favorites"><button class="small" data-m="1" title="Couper / rétablir la zone (volume d'entrée 0)" style="${isMuted(i) ? 'background:var(--err);color:#fff' : ''}">${isMuted(i) ? 'muet' : 'mute'}</button><input type="range" min="0" max="127" data-v="1" value="${evOf(i) ?? (mixOf(i).vol ?? 100)}" style="width:110px;--p:${((evOf(i) ?? (mixOf(i).vol ?? 100)) / 127 * 100).toFixed(1)}%"><output>${evOf(i) ?? 'None'}</output></div></td>
+      <td>${z.aux === undefined && !('wantAux' in mixOf(i)) ? '<span class="muted">?</span>' : `<div class="tr" title="Aux Send Level : écrit dans le Multi à la sauvegarde 💾"><button class="small" data-ax="p" style="${auxOf(i) === null ? 'background:var(--acc,#4a7);color:#fff' : ''}" title="Niveau prévu par le programme">Prog</button><input type="number" data-ax="v" min="0" max="127" value="${auxOf(i) ?? ''}" placeholder="—" style="width:56px">${'wantAux' in mixOf(i) && mixOf(i).wantAux !== z.aux ? ' <span class="warn" title="Pas encore dans l\'Artis">💾</span>' : ''}</div>`}</td>
       <td class="state">${st}</td>`;
     tr.querySelectorAll('input[data-k]').forEach(inp => inp.addEventListener('change', () => {
       const v = parseNote(inp.value); if (v === null) { toast('Note invalide : tape par ex. C4, F#2 ou 60'); renderTable(); return; }
@@ -738,6 +750,9 @@ function renderTable() {
     const rg = tr.querySelector('input[data-v]'), ov = rg.nextElementSibling;
     rg.oninput = () => { ov.textContent = rg.value; rg.style.setProperty('--p', (rg.value / 127 * 100).toFixed(1) + '%'); setVol(i, +rg.value); };
     tr.querySelector('button[data-m]').onclick = () => setMute(i, !isMuted(i));
+    const axp = tr.querySelector('button[data-ax]'), axv = tr.querySelector('input[data-ax]');
+    if (axp) axp.onclick = () => setAux(i, null);
+    if (axv) axv.addEventListener('change', () => { const v = parseInt(axv.value, 10); if (axv.value.trim() === '') return setAux(i, null); if (!(v >= 0 && v <= 127)) { toast('Reverb : 0 à 127, ou Prog'); renderTable(); return; } setAux(i, v); });
     tr.querySelector('input[data-k=prog]').addEventListener('change', e => applyProgram(i, parseInt(e.target.value, 10)));
     tr.querySelectorAll('button[data-t]').forEach(b => b.addEventListener('click', () => {
       const d = +b.dataset.t; applyTranspose(i, d === 0 ? 0 : z.tr + d);
@@ -1203,8 +1218,9 @@ async function svGo() {
     // [V 17/11] Partie commune du tampon (0B sel 1) : réglages généraux du Multi faits sur la façade (type de reverb à +0xA3,
     // Aux Send Level des zones à +0x22…). On la recale sur l'en-tête de l'objet (meilleur alignement) et on recopie les écarts.
     const xc = await ask([...H, 0x0B, 0, 0, 0, 1, 0, 0, 0xF7], x => x[0] === 0xF0 && x[4] === 0x0B && x[8] === 1 && x[9] === 0, 2000);
+    let best = null;
     if (xc) {
-      const cm = unpack(xc.slice(11, -3)); let best = null;
+      const cm = unpack(xc.slice(11, -3));
       for (let sh = -32; sh <= 64; sh++) {
         let n = 0, m = 0;
         for (let i = 0; i < cm.length; i++) { const j = sh + i; if (j < 3 || j >= ZBASE) continue; n++; if (cm[i] === data[j]) m++; }
@@ -1215,6 +1231,12 @@ async function svGo() {
         for (let i = 0; i < cm.length; i++) { const j = best.sh + i; if (j < 3 || j >= ZBASE) continue; if (data[j] !== cm[i]) { data[j] = cm[i]; c++; } }
         svLog(`   Partie commune (effets, Aux Send…) : ${c} octet(s) repris du clavier.`); changed += c;
       } else svLog('   ⚠ Partie commune non reconnue : les réglages généraux faits sur la façade (effets) ne sont pas repris.', 'warn');
+    }
+    const auxW = [0, 1, 2, 3].map(z => { const m = mixOf(z) || {}; return 'wantAux' in m ? m.wantAux : undefined; });
+    if (auxW.some(v => v !== undefined)) {
+      if (!xc || !best || best.r < 0.85) throw 'partie commune du Multi non reconnue : impossible d\'écrire la reverb (Aux Send). Rien écrit.';
+      auxW.forEach((v, z) => { if (v === undefined) return; const j = best.sh + 0x22 + 2 * z, u = v === null ? 0xFFFF : v; if (data[j] !== u >> 8 || data[j + 1] !== (u & 255)) changed++; data[j] = u >> 8; data[j + 1] = u & 255; });
+      svLog('   Reverb (Aux Send) écrite : ' + auxW.map((v, z) => v === undefined ? null : `zone ${z + 1} = ${v === null ? 'Program' : v}`).filter(Boolean).join(', '));
     }
     const wants = [0, 1, 2, 3].map(z => (mixOf(z) || {}).want);
     wants.forEach((w, z) => { if (w === undefined) return; const o = ZBASE + z * ZLEN; data[o + 0x1B] = w; data[o + 0xA0] = w; });
@@ -1228,7 +1250,7 @@ async function svGo() {
       svLog(`   Transpose du morceau (${sT > 0 ? '+' : ''}${sT}) retiré des 4 zones avant écriture.`);
     }
     svLog(`   ${changed} octet(s) diffèrent du Multi ${cur.id} en mémoire.` + '');
-    if (ow && !changed && !wants.some(w => w !== undefined) && !progs.some(n => n !== undefined) && !sT && name === src.name) { svLog('Rien à écrire : le Multi en mémoire est déjà identique.', 'okc'); svDone(id, name); return; }
+    if (ow && !changed && !wants.some(w => w !== undefined) && !progs.some(n => n !== undefined) && !auxW.some(v => v !== undefined) && !sT && name === src.name) { svLog('Rien à écrire : le Multi en mémoire est déjà identique.', 'okc'); svDone(id, name); return; }
     svLog(`4/5 ${ow ? 'Écrasement du' : 'Écriture dans le'} n° ${id} « ${name} »…`);
     if (!ow && !(await Mem.isFree(id))) throw `le n° ${id} vient d'être occupé : rien écrit`;
     try { await Mem.write(id, name, data, pct => { $('#svGo').textContent = `Écriture ${pct} %`; }); }
@@ -1246,7 +1268,7 @@ async function svGo() {
       if (DB.mix && DB.mix[cur.id]) DB.mix[id] = JSON.parse(JSON.stringify(DB.mix[cur.id]));
       if (DB.hidden && DB.hidden[cur.id]) DB.hidden[id] = DB.hidden[cur.id].slice();
     }
-    for (const k of [cur.id, id]) if (DB.mix && DB.mix[k]) DB.mix[k].forEach(m => { if (m) { delete m.want; delete m.wantProg; } });
+    for (const k of [cur.id, id]) if (DB.mix && DB.mix[k]) DB.mix[k].forEach(m => { if (m) { delete m.want; delete m.wantProg; delete m.wantAux; } });
     save(); renderFavs(); fillFavSel();
     $('#svId').value = '';
     if (!ow && $('#svFav').checked) { await addFav(id, name); await goMulti(id, name); }
