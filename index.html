@@ -140,7 +140,7 @@ body.locked .slot .act,body.locked #favs .act,body.locked #slItems button,body.l
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">version 1.31</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">version 1.32</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -222,7 +222,7 @@ body.locked .slot .act,body.locked #favs .act,body.locked #slItems button,body.l
 <section>
  <details id="asmBox"><summary style="cursor:pointer"><h2 style="display:inline-flex;margin:0">🧩 Assembler un Multi</h2> <span class="note">(prendre des zones toutes faites dans d'autres Multis)</span></summary>
   <p class="note">La page ne sait pas changer le programme d'une zone proprement (voir 💾). Ici, on recopie des zones <b>entières</b> déjà réglées et sauvées sur l'Artis (programme, réglages, sliders, statut Mute compris). Ex. : zone 1 = zone 1 du 281 (ton piano), zone 2 = zone 1 du 282 (B3). Les zones « garder » restent celles du Multi de destination (ou du 1er Multi source s'il n'existe pas). Ensuite, règle les splits dans la page et 💾.</p>
-  <div class="row">N° destination <input type="number" id="asmId" min="257" max="1024" style="width:80px"> Nom <input type="text" id="asmName" maxlength="16" style="width:180px"> <label><input type="checkbox" id="asmKeepRange" checked> garder les splits (notes basse/haute) de la destination</label></div>
+  <div class="row">N° destination <input type="number" id="asmId" min="257" max="1024" style="width:80px"> Nom <input type="text" id="asmName" maxlength="16" style="width:180px"> <label><input type="checkbox" id="asmKeepRange" checked> garder les splits (notes basse/haute) de la destination</label> <label>ou split : zone 1 en dessous, zone 2 à partir de <input type="text" id="asmSplit" placeholder="ex. C5" style="width:60px"></label></div>
   <table class="tbl" id="asmTbl"></table>
   <div class="row"><button id="asmGo" disabled>Assembler et écrire dans l'Artis</button></div>
   <pre id="asmLog" class="note" style="white-space:pre-wrap"></pre>
@@ -1574,13 +1574,21 @@ $('#asmGo').onclick = async () => {
       const o = ZBASE + r.sz * ZLEN, p = s.data[o + 0x0C] * 128 + s.data[o + 0x0D] + 1;
       L(`  zone ${z + 1} ← zone ${r.sz + 1} du Multi ${r.src} « ${s.name} » (programme ${p} ${await Artis.name(0x0A, p) || ''})`);
     }
+    const spTxt = $('#asmSplit').value.trim();
+    if (spTxt) {   // split simple à 2 zones : zone 1 = tout en dessous, zone 2 = à partir de cette note
+      const m = /^([A-Ga-g])(#?)(-?\d)$/.exec(spTxt), sp = /^\d+$/.test(spTxt) ? +spTxt : m ? NN.indexOf(m[1].toUpperCase() + m[2]) + 12 * (+m[3] + 1) : -1;
+      if (!(sp >= 1 && sp <= 127) || (m && NN.indexOf(m[1].toUpperCase() + m[2]) < 0)) throw `split « ${spTxt} » incompris (ex. C5 ou 72) : rien écrit`;
+      const z1 = ZBASE + 0x12, z2 = ZBASE + ZLEN + 0x12;
+      data[z1] = 0; data[z1 + 1] = sp - 1; data[z2] = sp; data[z2 + 1] = 127;
+      L(`  split : zone 1 ${noteName(0)}–${noteName(sp - 1)}, zone 2 ${noteName(sp)}–${noteName(127)}`);
+    }
     for (let z = 0; z < 4; z++) if (!progCoherent(data, z)) L(`  ⚠ zone ${z + 1} gardée mais incohérente : elle jouera un autre son que celui affiché`, 'warn');
     L(`Écriture du n° ${id} « ${name} »…`);
     if (!dst && !(await Mem.isFree(id))) throw `le n° ${id} vient d'être occupé : rien écrit`;
     await Mem.write(id, name, data);
     const back = await Mem.read(id);
     if (back.size !== data.length || back.data.some((v, k) => v !== data[k])) throw 'relecture différente : ne compte pas sur ce Multi';
-    L(`✅ Écrit et relu : Multi ${id} « ${name} ». Je le charge : règle les splits puis 💾.`);
+    L(`✅ Écrit et relu : Multi ${id} « ${name} ». Je le charge${spTxt ? '' : ' : règle les splits puis 💾'}.`);
     Artis.names[MULTI + ':' + id] = name;
     saving = false; await goMulti(id, name);
   } catch (e) { L('⚠ ' + e); }
