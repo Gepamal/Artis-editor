@@ -118,6 +118,7 @@ details summary{cursor:pointer;color:var(--muted)}
 #savePanel{display:none;margin-top:10px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:#211d12}
 #savePanel.on{display:block}
 #savePanel .mode{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 4px} #savePanel .mode label.dis{opacity:.45}
+body.locked .slot .act,body.locked #favs .act,body.locked #slItems button,body.locked #slAddRow{display:none} #slItems.fold{display:none}
 #saveStatus{font-size:13px} #saveStatus:empty{display:none}
 #btnSave.open{outline:2px solid #fff3}
 #saveLog{font:12px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin-top:8px;color:#c9ccd3}
@@ -126,7 +127,7 @@ details summary{cursor:pointer;color:var(--muted)}
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.25</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.26</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -139,6 +140,7 @@ details summary{cursor:pointer;color:var(--muted)}
 <main>
 <section id="bankSec">
   <h2>Mes 10 favoris <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">· mêmes places que les 10 boutons Favorites de l'Artis</span><span class="grow"></span>
+    <button class="small" id="btnLock" title="Verrouillé : impossible de retirer, renommer, déplacer un bouton ou un morceau par erreur">🔒 Verrouillé</button>
     <button class="small" id="btnFavById">+ Multi n°…</button><button class="small" id="btnFavProg">+ Programme n°…</button></h2>
   <div class="bank" id="bank"></div>
   <p class="note">Clic = charge le son et l'ouvre en édition juste en dessous. Touches 1 à 9 et 0 = boutons 1 à 10. Glisse un bouton sur un autre pour les échanger. Case vide : double-clic (avec confirmation) pour y mettre le Multi en cours ; un simple clic ne fait rien. Pour figer un favori dans le clavier : sauvegarde (💾), puis appui long sur le bouton Favorites du même numéro sur l'Artis.</p>
@@ -239,8 +241,9 @@ details summary{cursor:pointer;color:var(--muted)}
       <button class="small" id="btnSlDel">Supprimer</button>
       <button class="small" id="btnSlTxt" title="Liste lisible, à envoyer sur ton téléphone ou à imprimer">Exporter (.txt)</button>
       <label style="cursor:pointer;text-transform:none;letter-spacing:0"><input type="file" id="fileImport2" accept=".json,application/json" hidden><span class="btnlike">📂 Importer…</span></label></h2>
+    <div class="row"><button class="small" id="btnSlFold">▸ Afficher les morceaux</button></div>
     <ul class="list" id="slItems"></ul>
-    <div class="row" style="margin-top:8px">
+    <div class="row" id="slAddRow" style="margin-top:8px">
       <button class="small" id="btnSlAddCur" disabled>+ Multi en cours</button>
       <select id="slAddFav"></select><button class="small" id="btnSlAddFav">+ favori</button>
       <span class="grow"></span><button class="small" id="btnSlCheck" disabled title="Lit dans l'Artis chaque Multi de la setlist et signale ce qui sonnerait faux en concert">🩺 Vérifier pour la scène</button>
@@ -922,10 +925,10 @@ function renderFavs() {
       d.onclick = e => {
         const a = e.target.dataset && e.target.dataset.a;
         if (a === 'ren') { const n = prompt('Nom affiché (ex. le morceau)', f.label || f.name); if (n !== null) { f.label = n.trim(); favsChanged(); } return; }
-        if (a === 'off') { delete f.slot; favsChanged(); return; }
+        if (a === 'off') { if (confirm(`Retirer « ${f.label || f.name} » du bouton ${k % 10} ?`)) { delete f.slot; favsChanged(); } return; }
         goFav(f);
       };
-      d.ondragstart = e => e.dataTransfer.setData('text/plain', String(k));
+      d.ondragstart = e => { if (document.body.classList.contains('locked')) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', String(k)); };
     }
     d.ondragover = e => { e.preventDefault(); d.classList.add('dragover'); };
     d.ondragleave = () => d.classList.remove('dragover');
@@ -969,7 +972,8 @@ async function addFav(multi, name, kind = 'multi', slot = 0) {
   toast(k ? 'Ajouté sur le bouton ' + k : 'Les 10 boutons sont pris : ajouté dans « Autres sons »');
 }
 const curSl = () => DB.setlists.find(s => s.id === DB.curSl) || null;
-function renderSetlist() {
+function renderSetlist() { renderSetlist2(); if (typeof applyUI === 'function' && $('#btnLock')) try { applyUI(); } catch (e) {} }
+function renderSetlist2() {
   const sel = $('#slSel'); sel.innerHTML = '';
   if (!DB.setlists.length) { const o = document.createElement('option'); o.textContent = '(aucune setlist)'; sel.appendChild(o); }
   DB.setlists.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o); });
@@ -983,7 +987,7 @@ function renderSetlist() {
       <button class="small" data-a="up">↑</button><button class="small" data-a="dn">↓</button><button class="small" data-a="ren" title="Titre, transpose et note du morceau">✎</button><button class="small" data-a="del">✕</button>`;
     li.addEventListener('click', e => {
       const a = e.target.dataset && e.target.dataset.a, it2 = sl.items;
-      if (a === 'del') { it2.splice(i, 1); }
+      if (a === 'del') { if (!confirm(`Retirer « ${it.title || it.name} » de la setlist ?`)) return; it2.splice(i, 1); }
       else if (a === 'up' && i > 0) it2.splice(i - 1, 0, it2.splice(i, 1)[0]);
       else if (a === 'dn' && i < it2.length - 1) it2.splice(i + 1, 0, it2.splice(i, 1)[0]);
       else if (a === 'ren') { const t = prompt('Titre du morceau', it.title || it.name); if (t === null) return;
@@ -1475,6 +1479,18 @@ async function checkSetlist() {
   box.textContent = lines.join('\n'); b.disabled = !out; b.textContent = '🩺 Vérifier pour la scène';
 }
 $('#btnSlCheck').onclick = checkSetlist;
+// Verrou (par défaut) et setlist repliée : réglages mémorisés dans ce navigateur
+const UIKEY = 'artisEditor.ui';
+let UI = {locked: true, fold: true}; try { Object.assign(UI, JSON.parse(localStorage.getItem(UIKEY)) || {}); } catch (e) {}
+function applyUI() {
+  document.body.classList.toggle('locked', UI.locked); $('#btnLock').textContent = UI.locked ? '🔒 Verrouillé' : '🔓 Modifiable';
+  $('#slItems').classList.toggle('fold', UI.fold); const n = ((curSl() || {}).items || []).length;
+  $('#btnSlFold').textContent = UI.fold ? `▸ Afficher les ${n} morceaux` : '▾ Replier les morceaux';
+  try { localStorage.setItem(UIKEY, JSON.stringify(UI)); } catch (e) {}
+}
+$('#btnLock').onclick = () => { UI.locked = !UI.locked; applyUI(); };
+$('#btnSlFold').onclick = () => { UI.fold = !UI.fold; applyUI(); };
+setTimeout(applyUI);
 // Recherche : contenu brut de programmes (type 0A) et de Multis, lecture seule
 $('#btnRsDump').onclick = async () => {
   const b = $('#btnRsDump'); if (!out || saving) return; b.disabled = true;
