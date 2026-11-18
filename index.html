@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Artis Editor</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#181a20"><link rel="icon" href="icon-192.png">
 <style>
 :root{
   --bg:#121417; --panel:#1b1e23; --panel2:#23272e; --line:#323843; --text:#e7e9ee; --muted:#9097a3;
@@ -127,7 +128,7 @@ body.locked .slot .act,body.locked #favs .act,body.locked #slItems button,body.l
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.26</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">prototype 1.27</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -1741,6 +1742,8 @@ document.addEventListener('fullscreenchange', () => { if (!document.fullscreenEl
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
 // Setlists intégrées à la page : ajoutées une seule fois au stockage local (ensuite modifiables, et non réimposées si supprimées)
 const SEEDS = [];
+// Appli installable et utilisable hors ligne (mode avion) quand la page est servie en https (GitHub Pages)
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 load();
 // 1.20 : programme et Aux Send « à écrire à la sauvegarde » abandonnés (la page ne sait pas les écrire correctement) : on purge les restes
 if (DB.mix) for (const k in DB.mix) (DB.mix[k] || []).forEach(m => { if (m) { delete m.wantProg; delete m.wantName; delete m.wantAux; } });
