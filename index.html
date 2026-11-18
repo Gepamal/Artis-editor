@@ -140,7 +140,7 @@ body.locked .slot .act,body.locked #favs .act,body.locked #slItems button,body.l
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">version 1.32</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">version 1.33</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -254,12 +254,12 @@ body.locked .slot .act,body.locked #favs .act,body.locked #slItems button,body.l
       <button class="small" id="btnSlDel">Supprimer</button>
       <button class="small" id="btnSlTxt" title="Liste lisible, à envoyer sur ton téléphone ou à imprimer">Exporter (.txt)</button>
       <label style="cursor:pointer;text-transform:none;letter-spacing:0"><input type="file" id="fileImport2" accept=".json,application/json" hidden><span class="btnlike">📂 Importer…</span></label></h2>
-    <div class="row"><button class="small" id="btnSlFold">▸ Afficher les morceaux</button></div>
+    <div class="row"><button class="small" id="btnSlFold">▸ Afficher les morceaux</button><span class="grow"></span><button class="small" id="btnSlCheck" disabled title="Lit dans l'Artis chaque Multi de la setlist et signale ce qui sonnerait faux en concert">🩺 Vérifier pour la scène</button></div>
     <ul class="list" id="slItems"></ul>
     <div class="row" id="slAddRow" style="margin-top:8px">
       <button class="small" id="btnSlAddCur" disabled>+ Multi en cours</button>
       <select id="slAddFav"></select><button class="small" id="btnSlAddFav">+ favori</button>
-      <span class="grow"></span><button class="small" id="btnSlCheck" disabled title="Lit dans l'Artis chaque Multi de la setlist et signale ce qui sonnerait faux en concert">🩺 Vérifier pour la scène</button>
+      
     </div>
     <pre id="slCheck" class="note" style="display:none;white-space:pre-wrap;margin-top:8px"></pre>
     <p class="note">En mode scène : → / Espace / Page suivante = morceau suivant, ← / Page précédente = précédent, Échap = sortir. Une pédale « page turner » Bluetooth marche donc aussi.</p>
