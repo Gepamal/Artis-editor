@@ -29,7 +29,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#3a404b}
 input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--accent)}
 .key{cursor:pointer} .key.w.on{background:var(--accent)} .key.b.on{background:#b07d10}
-main{max-width:1280px;margin:0 auto;padding:16px;display:grid;gap:16px}
+main{max-width:1280px;margin:0 auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+main>section{min-width:0;overflow-x:auto}
 section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
 section h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 section h2 .grow{flex:1}
@@ -102,6 +103,7 @@ details summary{cursor:pointer;color:var(--muted)}
 /* mode scène */
 #stage{position:fixed;inset:0;background:#000;z-index:20;display:none;flex-direction:column;padding:24px;gap:16px}
 #stage.on{display:flex}
+body:has(#stage.on) .toast{bottom:160px}
 #stage .top{display:flex;justify-content:space-between;align-items:center;color:var(--muted)}
 #stage .cur{font-size:clamp(36px,8vw,96px);font-weight:700;color:#fff;line-height:1.05}
 #stage .cnote{font-size:clamp(16px,2.5vw,28px);color:var(--accent)}
@@ -116,6 +118,13 @@ details summary{cursor:pointer;color:var(--muted)}
 #stage .it{font-size:20px;padding:8px 12px;border-radius:6px;cursor:pointer;color:#bbb}
 #stage .it.on{background:#2b2615;color:#fff}
 #stage .navb{display:flex;gap:12px} #stage .navb button{font-size:22px;padding:14px 28px}
+@media (max-width:700px){
+  html,body{overflow-x:hidden}
+  .bank{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px} .slot{padding:6px 4px;min-height:60px} .slot .nm{font-size:12px}
+  #stage{padding:12px;gap:8px} #stage .it{font-size:17px;padding:6px 8px}
+  #stage .navb span{display:none}
+  #stage .navb{display:grid;grid-template-columns:1fr 1fr;gap:6px} #stage .navb button{min-width:0;font-size:18px;padding:12px 4px}
+}
 #savePanel{display:none;margin-top:10px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:#211d12}
 #savePanel.on{display:block}
 #savePanel .mode{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 4px} #savePanel .mode label.dis{opacity:.45}
@@ -123,12 +132,12 @@ body.locked .slot .act,body.locked #favs .act,body.locked #slItems button,body.l
 #saveStatus{font-size:13px} #saveStatus:empty{display:none}
 #btnSave.open{outline:2px solid #fff3}
 #saveLog{font:12px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin-top:8px;color:#c9ccd3}
-.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#2b2f37;border:1px solid var(--line);padding:8px 14px;border-radius:8px;z-index:30;display:none}
+.toast{pointer-events:none;max-width:calc(100vw - 32px);position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#2b2f37;border:1px solid var(--line);padding:8px 14px;border-radius:8px;z-index:30;display:none}
 </style>
 </head>
 <body>
 <header>
-  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">version 1.28</span></h1>
+  <h1>Artis Editor <span class="muted" style="font-weight:400;font-size:12px">version 1.29</span></h1>
   <span id="status" class="pill">Déconnecté</span>
   <span id="ports" style="display:none" class="row"><select id="inSel" title="Entrée MIDI"></select><select id="outSel" title="Sortie MIDI"></select></span>
   <button id="btnPorts" class="small" title="Choisir les ports MIDI à la main" style="display:none">⚙ Ports</button>
@@ -298,7 +307,8 @@ const n7 = (v, n) => Array.from({length: n}, (_, i) => (v >> (7 * i)) & 127);   
 const r7 = a => a.reduce((s, v, i) => s + (v << (7 * i)), 0);
 function unpack(d) { let acc = 0, nb = 0; const o = []; for (const v of d) { acc |= v << nb; nb += 7; while (nb >= 8) { o.push(acc & 255); acc >>= 8; nb -= 8; } } return o; }
 const ascii = a => String.fromCharCode(...a.filter(c => c >= 32 && c < 127)).trim();
-function toast(msg, ms = 2500) { const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', ms); }
+function toast(msg, ms = 2500) { if (typeof stage !== 'undefined' && stage.on && !/^⚠/.test(msg)) return;   // en scène : seulement les alertes, le titre est déjà affiché en grand
+  const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', ms); }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ====================== Journal ====================== */
@@ -1075,6 +1085,12 @@ function makeFakeArtis() {
   window.demoFrontEdit = (z, off, v) => { buf[ZBASE + z * ZLEN + off] = v; };   // simule un reglage change sur la facade
   const load = id => { cur = id; buf = mem[id].data.slice(); if (window.demoEchoVol) [0, 1, 2, 3].forEach(c => reply([0xB0 + c, 7, 100])); };   // hypothèse : l'Artis renvoie les volumes de zone au chargement
   load(1);
+  // Démo : un Multi utilisateur cité par la setlist ou les favoris (fichier importé) est fabriqué à la volée,
+  // pour pouvoir répéter le mode scène sans le clavier. Les n° libres restent libres.
+  const demoRef = id => { if (mem[id] || id < 257) return !!mem[id];
+    const r = [...DB.favs, ...DB.setlists.flatMap(l => l.items)].find(x => x.kind === 'multi' && x.multi === id);
+    if (r) mem[id] = {name: (r.name || r.label || 'Multi ' + id).slice(0, 20), user: 1, data: mk(Z(0, 127, 0, 127))};
+    return !!r; };
   const cc = {};
   const input = {id: 'demo-in', name: 'Kurzweil Artis (simulé)', state: 'connected', onmidimessage: null};
   const reply = x => setTimeout(() => input.onmidimessage && input.onmidimessage({data: new Uint8Array(x)}), 8);
@@ -1099,9 +1115,10 @@ function makeFakeArtis() {
       reply([...H, 0x0B, 0, 0, 0, 2, x[9], 0, ...dd, ...xsum(dd), 0xF7]);
     }
     else if (x[4] === 0x0B && ((x[8] === 3 && x[9] === 0) || x[8] === 1)) { const dd = pack(buf.slice(0, ZBASE)); reply([...H, 0x0B, 0, 0, 0, x[8], x[9], 0, ...dd, ...xsum(dd), 0xF7]); }
-    else if (x[4] === 0x11) { const id = x[5] * 128 + x[6]; if (mem[id] && !(window.demoNoReset && id === cur)) load(id); }
+    else if (x[4] === 0x11) { const id = x[5] * 128 + x[6]; demoRef(id); if (mem[id] && !(window.demoNoReset && id === cur)) load(id); }
     else if (x[4] === 0x5A) {
       const t = x[7], id = x[9] + 128 * x[10], sub = x[5];
+      if (t === MULTI && sub !== 0x06) demoRef(id);
       if (sub === 0x20) {
         if (t === 0x0A && progs[id]) reply(A(x, 0x05, 0, 0, 0, 0, ...[...progs[id]].map(c => c.charCodeAt(0)), 0));
         else if (t === MULTI && mem[id]) reply(A(x, 0x05, ...n7(mem[id].data.length, 3), mem[id].user, ...[...mem[id].name].map(c => c.charCodeAt(0)), 0));
@@ -1127,7 +1144,7 @@ function makeFakeArtis() {
 }
 async function startDemo() {
   demo = true; access = makeFakeArtis(); fillPorts(); await openPorts();
-  toast('Mode démo : un Artis simulé répond. Multis disponibles : 1, 12, 181, 257 (n° libres à partir de 258).', 5000);
+  toast('Mode démo : un Artis simulé répond. les Multis de ta setlist et de tes favoris sont imités (sons factices), les autres n° restent libres.', 5000);
 }
 
 /* ====================== Bibliothèque des Multis ====================== */
